@@ -5,6 +5,7 @@ import * as asyncStorage from '#platform/server/asyncStorage';
 import * as connection from '#platform/server/connection';
 import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
+import { followAccountName, markCreditCard } from '#server/budget/credit-card';
 import * as db from '#server/db';
 import {
   APIError,
@@ -63,6 +64,7 @@ export type AccountHandlers = {
   'akahu-accounts-link': typeof linkAkahuAccount;
   'enablebanking-accounts-link': typeof linkEnableBankingAccount;
   'account-create': typeof createAccount;
+  'account-mark-credit-card': typeof markCreditCard;
   'account-close': typeof closeAccount;
   'account-reopen': typeof reopenAccount;
   'account-move': typeof moveAccount;
@@ -107,6 +109,9 @@ async function updateAccount({
     ...(last_reconciled && { last_reconciled }),
     ...(account_group_id !== undefined && { account_group_id }),
   });
+  if (name !== undefined) {
+    await followAccountName(id, name);
+  }
   return {};
 }
 
@@ -558,11 +563,13 @@ async function createAccount({
   balance = 0,
   offBudget = false,
   closed = false,
+  creditCard = false,
 }: {
   name: string;
   balance?: number | undefined;
   offBudget?: boolean | undefined;
   closed?: boolean | undefined;
+  creditCard?: boolean | undefined;
 }) {
   const id: AccountEntity['id'] = await db.insertAccount({
     name,
@@ -587,6 +594,10 @@ async function createAccount({
       cleared: true,
       starting_balance_flag: true,
     });
+  }
+
+  if (creditCard && !offBudget) {
+    await markCreditCard({ id });
   }
 
   return id;
@@ -1792,6 +1803,7 @@ app.method('pluggyai-accounts-link', linkPluggyAiAccount);
 app.method('akahu-accounts-link', linkAkahuAccount);
 app.method('enablebanking-accounts-link', linkEnableBankingAccount);
 app.method('account-create', mutator(undoable(createAccount)));
+app.method('account-mark-credit-card', mutator(undoable(markCreditCard)));
 app.method('account-close', mutator(closeAccount));
 app.method('account-reopen', mutator(undoable(reopenAccount)));
 app.method('account-move', mutator(undoable(moveAccount)));

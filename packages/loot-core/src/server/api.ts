@@ -41,6 +41,7 @@ import {
 import type { AmountOPType, APIScheduleEntity } from './api-models';
 import { aqlQuery } from './aql';
 import { isTrackingBudget } from './budget/actions';
+import { followAccountName, isCreditCardAccount } from './budget/credit-card';
 import * as cloudStorage from './cloud-storage';
 import type { RemoteFile } from './cloud-storage';
 import * as db from './db';
@@ -643,7 +644,15 @@ handlers['api/account-create'] = withMutation(async function ({
 handlers['api/account-update'] = withMutation(async function ({ id, fields }) {
   checkFileOpen();
   // @ts-expect-error - fix me
-  return db.updateAccount({ id, ...accountModel.fromExternal(fields) });
+  const changes = accountModel.fromExternal(fields);
+  if (changes.offbudget && isCreditCardAccount(id)) {
+    throw APIError('A credit card account cannot be moved off budget');
+  }
+  const result = await db.updateAccount({ id, ...changes });
+  if (changes.name != null) {
+    await followAccountName(id, changes.name);
+  }
+  return result;
 });
 
 handlers['api/account-close'] = withMutation(async function ({

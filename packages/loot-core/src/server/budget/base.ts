@@ -9,6 +9,7 @@ import { getChangedValues } from '#shared/util';
 import type { CategoryGroupEntity } from '#types/models';
 
 import * as budgetActions from './actions';
+import * as creditCard from './credit-card';
 import * as envelopeBudget from './envelope';
 import * as trackingBudget from './tracking';
 
@@ -118,7 +119,7 @@ export async function reseedSumAmounts(months: string[]): Promise<string[]> {
       const name = resolveName(sheetName, `sum-amount-${cat.id}`);
       // A cell the spreadsheet doesn't have stays out of the seed set and is
       // left to be recomputed normally.
-      if (!sheet.get().hasCell(name)) {
+      if (!sheet.get().hasCell(name) || creditCard.isPaymentCategory(cat)) {
         continue;
       }
 
@@ -131,6 +132,11 @@ export async function reseedSumAmounts(months: string[]): Promise<string[]> {
 }
 
 export function createCategory(cat, sheetName, prevSheetName, start, end) {
+  // A payment category's activity is derived; defining it first makes the
+  // stock definition below a no-op
+  if (creditCard.isPaymentCategory(cat)) {
+    creditCard.createPaymentActivity(cat, sheetName, start, end);
+  }
   sheet.get().createDynamic(sheetName, 'sum-amount-' + cat.id, {
     initialValue: 0,
     run: () => {
@@ -151,6 +157,7 @@ export function createCategory(cat, sheetName, prevSheetName, start, end) {
 
   if (getBudgetType() === 'envelope') {
     envelopeBudget.createCategory(cat, sheetName, prevSheetName);
+    creditCard.createCells(cat, sheetName, prevSheetName, start, end);
   } else {
     void trackingBudget.createCategory(cat, sheetName, prevSheetName);
   }
@@ -197,6 +204,8 @@ function handleTransactionChange(transaction, changedFields) {
       .get()
       .recompute(resolveName(sheetName, 'sum-amount-' + transaction.category));
   }
+
+  creditCard.handleTransactionChange(transaction, changedFields);
 }
 
 function handleCategoryMappingChange(months, oldValue, newValue) {
@@ -240,6 +249,7 @@ function handleBudgetChange(budget) {
 export function triggerBudgetChanges(oldValues, newValues) {
   const { createdMonths = new Set() } = sheet.get().meta();
   const budgetType = getBudgetType();
+  let rebuild = false;
   sheet.startTransaction();
 
   try {
@@ -265,6 +275,7 @@ export function triggerBudgetChanges(oldValues, newValues) {
         } else if (table === 'category_mapping') {
           handleCategoryMappingChange(createdMonths, oldValue, newValue);
         } else if (table === 'categories') {
+          rebuild ||= creditCard.needsRebuild(oldValue, newValue);
           if (budgetType === 'envelope') {
             envelopeBudget.handleCategoryChange(
               createdMonths,
@@ -293,12 +304,17 @@ export function triggerBudgetChanges(oldValues, newValues) {
             );
           }
         } else if (table === 'accounts') {
+          rebuild ||= creditCard.accountNeedsRebuild(oldValue, newValue);
           handleAccountChange(createdMonths, oldValue, newValue);
         }
       });
     });
   } finally {
     sheet.endTransaction();
+  }
+
+  if (rebuild) {
+    creditCard.scheduleRebuild();
   }
 }
 
@@ -330,6 +346,7 @@ export async function createBudget(months) {
     q('category_groups').select('*'),
   );
   const categories = groups.flatMap(group => group.categories);
+  creditCard.refresh(categories);
 
   sheet.startTransaction();
   const meta = sheet.get().meta();
@@ -371,7 +388,10 @@ export async function createBudget(months) {
       // skips its per-category query. Only happens on a cold build, when
       // the value hasn't been restored from cache.
       const sumCell = `sum-amount-${cat.id}`;
-      if (sheet.get().getCellValueLoose(sheetName, sumCell) == null) {
+      if (
+        !creditCard.isPaymentCategory(cat) &&
+        sheet.get().getCellValueLoose(sheetName, sumCell) == null
+      ) {
         const name = resolveName(sheetName, sumCell);
         sheet
           .get()
@@ -453,7 +473,17 @@ export async function setType(type) {
   }
 
   meta.budgetType = type;
-  meta.createdMonths = new Set();
+  return rebuildBudget();
+}
+
+// Drops every budget cell, including the blank sheet so its statics are
+// recreated, and builds the budget again
+export async function rebuildBudget() {
+  sheet.get().setMeta({
+    ...sheet.get().meta(),
+    createdMonths: new Set(),
+    blankSheet: undefined,
+  });
 
   // Go through and force all the cells to be recomputed
   const nodes = sheet.get().getNodes();
