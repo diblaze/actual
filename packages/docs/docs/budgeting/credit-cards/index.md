@@ -51,4 +51,6 @@ We highly recommend you follow the _Within the Budget_ strategy for credit card 
 
 If you have recently moved to Actual from nYNAB or some other budgeting apps, you may notice that Actual doesn't use specific "credit card" accounts. Read through how Actual treats credit cards above and follow the examples in [Paying in Full](./paying-in-full.md) and in [Carrying Debt](./carrying-debt.md) to learn how Actual handles credit cards.
 
+To handle cards the nYNAB way, with a payment category per card, see the experimental [Credit Card Payment Categories](../../experimental/credit-card-payments.md) feature.
+
 :::
