@@ -64,6 +64,7 @@ export type DbCategory = {
   cleanup_def?: JsonString | null;
   template_settings?: { source: 'notes' | 'ui' };
   tombstone: 1 | 0;
+  payment_account?: DbAccount['id'] | null;
 };
 
 export type DbCategoryGroup = {
