@@ -29,6 +29,7 @@ import {
 import { Notes } from '#components/Notes';
 import { useCategory } from '#hooks/useCategory';
 import { useCategoryGroup } from '#hooks/useCategoryGroup';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useNotes } from '#hooks/useNotes';
 import type { Modal as ModalType } from '#modals/modalsSlice';
 
@@ -50,6 +51,10 @@ export function CategoryMenuModal({
   const { data: category } = useCategory(categoryId);
   const { data: categoryGroup } = useCategoryGroup(category?.group);
   const originalNotes = useNotes(category.id);
+  // A credit card's payment category belongs to the card: it follows the
+  // account's name, stays visible and cannot be deleted. One left hidden
+  // (from before the feature was on) can still be shown.
+  const isPaymentCategory = useIsPaymentCategory()(category);
 
   const onRename = newName => {
     if (newName && newName !== category.name) {
@@ -96,16 +101,19 @@ export function CategoryMenuModal({
         <>
           <ModalHeader
             leftContent={
-              <AdditionalCategoryMenu
-                category={category}
-                categoryGroup={categoryGroup}
-                onDelete={_onDelete}
-                onToggleVisibility={_onToggleVisibility}
-              />
+              (!isPaymentCategory || category.hidden) && (
+                <AdditionalCategoryMenu
+                  category={category}
+                  categoryGroup={categoryGroup}
+                  isPaymentCategory={isPaymentCategory}
+                  onDelete={_onDelete}
+                  onToggleVisibility={_onToggleVisibility}
+                />
+              )
             }
             title={
               <ModalTitle
-                isEditable
+                isEditable={!isPaymentCategory}
                 title={category.name}
                 onTitleUpdate={onRename}
               />
@@ -179,6 +187,7 @@ export function CategoryMenuModal({
 function AdditionalCategoryMenu({
   category,
   categoryGroup,
+  isPaymentCategory,
   onDelete,
   onToggleVisibility,
 }) {
@@ -225,8 +234,8 @@ function AdditionalCategoryMenu({
                 icon: category.hidden ? SvgViewShow : SvgViewHide,
                 iconSize: 16,
               },
-              !categoryGroup?.hidden && Menu.line,
-              {
+              !categoryGroup?.hidden && !isPaymentCategory && Menu.line,
+              !isPaymentCategory && {
                 name: 'delete',
                 text: t('Delete'),
                 icon: SvgTrash,

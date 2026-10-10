@@ -33,6 +33,7 @@ import {
 import { CategoryGroupActionMenu } from '#components/mobile/budget/CategoryGroupActionMenu';
 import { Notes } from '#components/Notes';
 import { useCategories } from '#hooks/useCategories';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useNotes } from '#hooks/useNotes';
 import { useUndo } from '#hooks/useUndo';
@@ -269,6 +270,10 @@ function AdditionalCategoryGroupMenu({
   onClose,
 }) {
   const { t } = useTranslation();
+  // A group holding a credit card's payment category stays visible and
+  // cannot be deleted; one left hidden can still be shown
+  const isPaymentCategory = useIsPaymentCategory();
+  const holdsPaymentCategory = !!group.categories?.some(isPaymentCategory);
   const triggerRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const itemStyle: CSSProperties = {
@@ -311,21 +316,26 @@ function AdditionalCategoryGroupMenu({
               getItemStyle={getItemStyle}
               items={
                 [
-                  {
-                    name: 'toggleVisibility',
-                    text: group.hidden ? t('Show') : t('Hide'),
-                    icon: group.hidden ? SvgViewShow : SvgViewHide,
-                    iconSize: 16,
-                  },
-                  ...(!group.is_income && [
-                    Menu.line,
-                    {
-                      name: 'delete',
-                      text: t('Delete'),
-                      icon: SvgTrash,
-                      iconSize: 15,
-                    },
-                  ]),
+                  ...(holdsPaymentCategory && !group.hidden
+                    ? []
+                    : [
+                        {
+                          name: 'toggleVisibility',
+                          text: group.hidden ? t('Show') : t('Hide'),
+                          icon: group.hidden ? SvgViewShow : SvgViewHide,
+                          iconSize: 16,
+                        },
+                      ]),
+                  ...(!group.is_income &&
+                    !holdsPaymentCategory && [
+                      Menu.line,
+                      {
+                        name: 'delete',
+                        text: t('Delete'),
+                        icon: SvgTrash,
+                        iconSize: 15,
+                      },
+                    ]),
                   ...(onSortAsc && onSortDesc
                     ? [
                         Menu.line,

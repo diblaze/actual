@@ -20,6 +20,7 @@ import { css, cx } from '@emotion/css';
 import { NotesButton } from '#components/NotesButton';
 import { InputCell } from '#components/table';
 import { useContextMenu } from '#hooks/useContextMenu';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
@@ -70,6 +71,10 @@ export function SidebarGroup({
   const canSortCategories =
     !!onSortCategories && (group.categories?.length ?? 0) > 1;
   const triggerRef = useRef(null);
+  // A group holding a credit card's payment category stays visible and
+  // cannot be deleted; one left hidden can still be shown
+  const isPaymentCategory = useIsPaymentCategory();
+  const holdsPaymentCategory = !!group.categories?.some(isPaymentCategory);
   const { handleContextMenu } = useContextMenu({
     triggerRef,
     items: [
@@ -82,13 +87,14 @@ export function SidebarGroup({
         name: 'toggle-visibility',
         text: group.hidden ? t('Show') : t('Hide'),
         onClick: () => onSave({ ...group, hidden: !group.hidden }),
-        hidden: group.is_income,
+        hidden: group.is_income || (holdsPaymentCategory && !group.hidden),
       },
-      onDelete && {
-        name: 'delete',
-        text: t('Delete'),
-        onClick: () => onDelete(group.id),
-      },
+      onDelete &&
+        !holdsPaymentCategory && {
+          name: 'delete',
+          text: t('Delete'),
+          onClick: () => onDelete(group.id),
+        },
       canSortCategories && Menu.line,
       canSortCategories && {
         name: 'sort-asc',

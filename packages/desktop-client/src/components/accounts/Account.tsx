@@ -40,6 +40,7 @@ import { t } from 'i18next';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
+  useMarkCreditCardMutation,
   useReopenAccountMutation,
   useSyncAndDownloadMutation,
   useUnlinkAccountMutation,
@@ -259,6 +260,7 @@ type AccountInternalProps = {
   dispatch: AppDispatch;
   onSetTransfer: ReturnType<typeof useTransactionBatchActions>['onSetTransfer'];
   onReopenAccount: (id: AccountEntity['id']) => void;
+  onMarkCreditCard: (id: AccountEntity['id'], name: string) => void;
   onUpdateAccount: (account: AccountEntity) => void;
   onUnlinkAccount: (id: AccountEntity['id']) => void;
   onSyncAndDownload: (accountId?: AccountEntity['id']) => void;
@@ -820,7 +822,8 @@ class AccountInternal extends PureComponent<
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
       | 'manage-columns'
-      | 'account-group',
+      | 'account-group'
+      | 'mark-credit-card',
   ) => {
     const accountId = this.props.accountId!;
     const account = this.props.accounts.find(
@@ -873,6 +876,20 @@ class AccountInternal extends PureComponent<
         break;
       case 'reopen':
         this.props.onReopenAccount(accountId);
+        break;
+      case 'mark-credit-card':
+        this.props.dispatch(
+          pushModal({
+            modal: {
+              name: 'confirm-mark-credit-card',
+              options: {
+                accountName: account.name,
+                onConfirm: () =>
+                  this.props.onMarkCreditCard(accountId, account.name),
+              },
+            },
+          }),
+        );
         break;
       case 'export':
         const accountName = this.getAccountTitle(account, accountId);
@@ -2087,6 +2104,10 @@ export function Account() {
   const { mutate: reopenAccount } = useReopenAccountMutation();
   const onReopenAccount = (id: AccountEntity['id']) => reopenAccount({ id });
 
+  const { mutate: markCreditCard } = useMarkCreditCardMutation();
+  const onMarkCreditCard = (id: AccountEntity['id'], name: string) =>
+    markCreditCard({ id, name });
+
   const { mutate: updateAccount } = useUpdateAccountMutation();
   const onUpdateAccount = (account: AccountEntity) =>
     updateAccount({ account });
@@ -2139,6 +2160,7 @@ export function Account() {
             location={location}
             savedFilters={savedFiters}
             onReopenAccount={onReopenAccount}
+            onMarkCreditCard={onMarkCreditCard}
             onUpdateAccount={onUpdateAccount}
             onUnlinkAccount={onUnlinkAccount}
             onSyncAndDownload={onSyncAndDownload}

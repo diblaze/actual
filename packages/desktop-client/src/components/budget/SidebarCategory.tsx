@@ -15,6 +15,7 @@ import type {
 
 import { InputCell } from '#components/table';
 import { useContextMenu } from '#hooks/useContextMenu';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
 import { SidebarCategoryButtons } from './SidebarCategoryButtons';
@@ -63,21 +64,28 @@ export function SidebarCategory({
   const categoryExpandedState = categoryExpandedStatePref ?? 0;
 
   const temporary = category.id === 'new';
+  // A credit card's payment category belongs to the card: it follows the
+  // account's name, stays visible and cannot be deleted. One left hidden
+  // (from before the feature was on) can still be shown.
+  const isPaymentCategory = useIsPaymentCategory()(category);
+  const hasMenu = !isPaymentCategory || !!category.hidden;
   const triggerRef = useRef(null);
   const { handleContextMenu } = useContextMenu({
     triggerRef,
+    enabled: hasMenu,
     items: [
-      {
+      !isPaymentCategory && {
         name: 'rename',
         text: t('Rename'),
         onClick: () => onEditName(category.id),
       },
-      !categoryGroup?.hidden && {
-        name: 'toggle-visibility',
-        text: category.hidden ? t('Show') : t('Hide'),
-        onClick: () => onSave({ ...category, hidden: !category.hidden }),
-      },
-      {
+      !categoryGroup?.hidden &&
+        hasMenu && {
+          name: 'toggle-visibility',
+          text: category.hidden ? t('Show') : t('Hide'),
+          onClick: () => onSave({ ...category, hidden: !category.hidden }),
+        },
+      !isPaymentCategory && {
         name: 'delete',
         text: t('Delete'),
         onClick: () => onDelete(category.id),
@@ -99,20 +107,23 @@ export function SidebarCategory({
       ref={triggerRef}
     >
       <TextOneLine data-testid="category-name">{category.name}</TextOneLine>
-      <View style={{ flexShrink: 0, marginLeft: 5 }}>
-        <Button
-          variant="bare"
-          className="hover-visible"
-          style={{ color: 'currentColor', padding: 3 }}
-          onPress={handleContextMenu}
-        >
-          <SvgCheveronDown
-            width={14}
-            height={14}
-            style={{ color: 'currentColor' }}
-          />
-        </Button>
-      </View>
+      {/* Nothing to offer for a payment category */}
+      {hasMenu && (
+        <View style={{ flexShrink: 0, marginLeft: 5 }}>
+          <Button
+            variant="bare"
+            className="hover-visible"
+            style={{ color: 'currentColor', padding: 3 }}
+            onPress={handleContextMenu}
+          >
+            <SvgCheveronDown
+              width={14}
+              height={14}
+              style={{ color: 'currentColor' }}
+            />
+          </Button>
+        </View>
+      )}
       <SidebarCategoryButtons
         category={category}
         dragging={dragging}

@@ -26,6 +26,7 @@ import { CategoryMenuModal } from './modals/CategoryMenuModal';
 import { CloseAccountModal } from './modals/CloseAccountModal';
 import { ConfirmCategoryDeleteModal } from './modals/ConfirmCategoryDeleteModal';
 import { ConfirmDeleteModal } from './modals/ConfirmDeleteModal';
+import { ConfirmMarkCreditCardModal } from './modals/ConfirmMarkCreditCardModal';
 import { ConfirmPayeesMergeModal } from './modals/ConfirmPayeesMergeModal';
 import { ConfirmTransactionEditModal } from './modals/ConfirmTransactionEditModal';
 import { ConfirmUnlinkAccountModal } from './modals/ConfirmUnlinkAccountModal';
@@ -167,6 +168,9 @@ export function Modals() {
 
         case 'confirm-delete':
           return <ConfirmDeleteModal key={key} {...modal.options} />;
+
+        case 'confirm-mark-credit-card':
+          return <ConfirmMarkCreditCardModal key={key} {...modal.options} />;
 
         case 'copy-widget-to-dashboard':
           return <CopyWidgetToDashboardModal key={key} {...modal.options} />;

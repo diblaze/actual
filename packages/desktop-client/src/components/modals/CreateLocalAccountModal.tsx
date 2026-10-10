@@ -26,6 +26,7 @@ import {
 import { Checkbox } from '#components/forms';
 import { validateAccountName } from '#components/util/accountValidation';
 import { useAccounts } from '#hooks/useAccounts';
+import { useCreditCardsEnabled } from '#hooks/useCreditCardsEnabled';
 import { useNavigate } from '#hooks/useNavigate';
 import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
 import { closeModal } from '#modals/modalsSlice';
@@ -39,6 +40,8 @@ export function CreateLocalAccountModal() {
   const { data: accounts = [] } = useAccounts();
   const [name, setName] = useState('');
   const [offbudget, setOffbudget] = useState(false);
+  const [creditCard, setCreditCard] = useState(false);
+  const canMarkCreditCard = useCreditCardsEnabled();
   const [balance, setBalance] = useState('0');
 
   const [nameError, setNameError] = useState(null);
@@ -72,6 +75,7 @@ export function CreateLocalAccountModal() {
           name,
           balance: toRelaxedNumber(balance),
           offBudget: offbudget,
+          creditCard: canMarkCreditCard && !offbudget && creditCard,
         },
         {
           onSuccess: id => {
@@ -199,6 +203,50 @@ export function CreateLocalAccountModal() {
                       </Trans>
                     </Text>
                   </div>
+                  {canMarkCreditCard && !offbudget && (
+                    <>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'flex-end',
+                          marginTop: 10,
+                        }}
+                      >
+                        <Checkbox
+                          id="creditcard"
+                          name="creditcard"
+                          checked={creditCard}
+                          onChange={() => setCreditCard(!creditCard)}
+                        />
+                        <label
+                          htmlFor="creditcard"
+                          style={{
+                            userSelect: 'none',
+                            verticalAlign: 'center',
+                          }}
+                        >
+                          <Trans>Credit card</Trans>
+                        </label>
+                      </View>
+                      <div
+                        style={{
+                          textAlign: 'right',
+                          fontSize: '0.7em',
+                          color: theme.pageTextLight,
+                          marginTop: 3,
+                        }}
+                      >
+                        <Text style={{ display: 'block' }}>
+                          <Trans>
+                            Card purchases move money into its payment category.
+                          </Trans>
+                        </Text>
+                        <Text style={{ display: 'block' }}>
+                          <Trans>This cannot be changed later.</Trans>
+                        </Text>
+                      </div>
+                    </>
+                  )}
                 </View>
               </View>
 
