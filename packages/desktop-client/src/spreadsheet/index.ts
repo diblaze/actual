@@ -50,6 +50,8 @@ export type Spreadsheets = {
     budget: number;
     'sum-amount': number;
     leftover: number;
+    // Balance without unfunded credit card debt (ccPaymentCategories flag)
+    'cash-leftover': number;
     carryover: number;
     goal: number;
     'long-goal': number;

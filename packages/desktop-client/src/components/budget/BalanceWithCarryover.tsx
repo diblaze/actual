@@ -10,6 +10,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { SvgArrowThinRight } from '@actual-app/components/icons/v1';
 import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
@@ -95,6 +96,8 @@ type BalanceWithCarryoverProps = Omit<
   shouldInlineGoalStatus?: boolean;
   CarryoverIndicator?: ComponentType<CarryoverIndicatorProps>;
   tooltipDisabled?: boolean;
+  /** Card spending the category could not cover (credit overspending) */
+  creditDebt?: number;
 };
 
 export function BalanceWithCarryover({
@@ -107,6 +110,7 @@ export function BalanceWithCarryover({
   shouldInlineGoalStatus,
   CarryoverIndicator: CarryoverIndicatorComponent = CarryoverIndicator,
   tooltipDisabled,
+  creditDebt = 0,
   children,
   ...props
 }: BalanceWithCarryoverProps) {
@@ -119,14 +123,25 @@ export function BalanceWithCarryover({
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const getBalanceAmountStyle = useCallback(
     (balanceValue: number) =>
-      makeBalanceAmountStyle(
-        balanceValue,
-        isGoalTemplatesEnabled ? goalValue : null,
-        longGoalValue === 1 ? balanceValue : budgetedValue,
-      ),
-    [budgetedValue, goalValue, isGoalTemplatesEnabled, longGoalValue],
+      // Overspent only on a card: the debt stays on the card instead of
+      // coming out of next month's To Budget, so it is a warning, not red
+      creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0
+        ? { color: theme.warningText }
+        : makeBalanceAmountStyle(
+            balanceValue,
+            isGoalTemplatesEnabled ? goalValue : null,
+            longGoalValue === 1 ? balanceValue : budgetedValue,
+          ),
+    [
+      budgetedValue,
+      creditDebt,
+      goalValue,
+      isGoalTemplatesEnabled,
+      longGoalValue,
+    ],
   );
   const format = useFormat();
+  const showGoalStatus = isGoalTemplatesEnabled && goalValue != null;
 
   const getDifferenceToGoal = useCallback(
     (balanceValue: number) =>
@@ -248,8 +263,22 @@ export function BalanceWithCarryover({
         <>
           <Tooltip
             content={
-              <View style={{ padding: 10 }}>
-                {GoalStatusDisplay(balanceValue, type)}
+              <View
+                style={{
+                  padding: 10,
+                  ...(creditDebt > 0 && { maxWidth: 260 }),
+                }}
+              >
+                {creditDebt > 0 && (
+                  <Text>
+                    <Trans>
+                      {{ amount: format(creditDebt, 'financial') }} of card
+                      spending was not covered. It stays on the card as debt and
+                      is not taken from next month's To Budget.
+                    </Trans>
+                  </Text>
+                )}
+                {showGoalStatus && GoalStatusDisplay(balanceValue, type)}
               </View>
             }
             style={{ ...styles.tooltip, borderRadius: '0px 5px 5px 0px' }}
@@ -257,8 +286,7 @@ export function BalanceWithCarryover({
             triggerProps={{
               delay: 750,
               isDisabled:
-                !isGoalTemplatesEnabled ||
-                goalValue == null ||
+                (!showGoalStatus && creditDebt <= 0) ||
                 isNarrowWidth ||
                 tooltipDisabled,
             }}

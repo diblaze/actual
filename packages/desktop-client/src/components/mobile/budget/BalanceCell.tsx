@@ -13,6 +13,7 @@ import { AutoTextSize } from 'auto-text-size';
 
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
 import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useCreditCardDebt } from '#hooks/useCreditCardDebt';
 import { useFormat } from '#hooks/useFormat';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
@@ -65,6 +66,7 @@ export function BalanceCell({
       : envelopeBudget.catCarryover(category.id);
 
   const format = useFormat();
+  const creditDebt = useCreditCardDebt(category.id);
 
   return (
     <BalanceWithCarryover
@@ -77,6 +79,7 @@ export function BalanceCell({
       goal={goal}
       budgeted={budgeted}
       longGoal={longGoal}
+      creditDebt={creditDebt}
       CarryoverIndicator={MobileCarryoverIndicator}
     >
       {({ type, value, className: defaultClassName }) => (
