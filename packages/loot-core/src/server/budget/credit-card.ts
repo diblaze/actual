@@ -161,6 +161,24 @@ export function createPaymentActivity(
       );
     },
   });
+
+  // How much of the card balance at the end of the month the payment category
+  // does not hold: unfunded card spending and debt from before the budget
+  sheet.get().createDynamic(sheetName, `cc-to-pay-${cat.id}`, {
+    initialValue: 0,
+    // Every change to the card balance reaches leftover through sum-amount
+    dependencies: [`leftover-${cat.id}`],
+    run: (leftover: unknown) => {
+      const [row] = db.runQuery<{ balance: number | null }>(
+        `SELECT SUM(t.amount) AS balance FROM v_transactions_internal_alive t
+          WHERE t.account = ? AND t.date <= ? AND t.is_parent = 0`,
+        [card.account, end],
+        true,
+      );
+      // An overspent payment category is cash overspending, shown as such
+      return Math.max(0, -number(row?.balance) - Math.max(0, number(leftover)));
+    },
+  });
 }
 
 // Per (month, category) cells for every card. Called for each category after
@@ -479,16 +497,16 @@ async function findOrCreatePaymentGroup(): Promise<string> {
 // account cannot become a card later, and the category cannot be renamed,
 // hidden or deleted while the feature is on. A category already named after
 // the card in the payment group (a manual workaround from before) is adopted.
-// A no-op with the feature off.
+// A no-op with the feature off. Returns whether the account is now a card.
 export async function createPaymentCategory({
   id,
   name,
 }: {
   id: string;
   name: string;
-}): Promise<void> {
+}): Promise<boolean> {
   if (!isFeatureOn()) {
-    return;
+    return false;
   }
   const groupId = await findOrCreatePaymentGroup();
   const adopted = await db.first<{ id: string }>(
@@ -504,7 +522,8 @@ export async function createPaymentCategory({
       hidden: 0,
       payment_account: id,
     });
-    return;
+    return true;
   }
   await db.insertCategory({ name, cat_group: groupId, payment_account: id });
+  return true;
 }

@@ -98,6 +98,8 @@ type BalanceWithCarryoverProps = Omit<
   tooltipDisabled?: boolean;
   /** Card spending the category could not cover (credit overspending) */
   creditDebt?: number;
+  /** Card balance a payment category does not hold */
+  cardToPay?: number;
 };
 
 export function BalanceWithCarryover({
@@ -111,6 +113,7 @@ export function BalanceWithCarryover({
   CarryoverIndicator: CarryoverIndicatorComponent = CarryoverIndicator,
   tooltipDisabled,
   creditDebt = 0,
+  cardToPay = 0,
   children,
   ...props
 }: BalanceWithCarryoverProps) {
@@ -124,8 +127,11 @@ export function BalanceWithCarryover({
   const getBalanceAmountStyle = useCallback(
     (balanceValue: number) =>
       // Overspent only on a card: the debt stays on the card instead of
-      // coming out of next month's To Budget, so it is a warning, not red
-      creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0
+      // coming out of next month's To Budget, so it is a warning, not red.
+      // A payment category short of its card balance is a warning too, unless
+      // it is overspent: that is cash overspending, red like any other.
+      (cardToPay > 0 && balanceValue >= 0) ||
+      (creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0)
         ? { color: theme.warningText }
         : makeBalanceAmountStyle(
             balanceValue,
@@ -134,6 +140,7 @@ export function BalanceWithCarryover({
           ),
     [
       budgetedValue,
+      cardToPay,
       creditDebt,
       goalValue,
       isGoalTemplatesEnabled,
@@ -266,7 +273,7 @@ export function BalanceWithCarryover({
               <View
                 style={{
                   padding: 10,
-                  ...(creditDebt > 0 && { maxWidth: 260 }),
+                  ...((creditDebt > 0 || cardToPay > 0) && { maxWidth: 260 }),
                 }}
               >
                 {creditDebt > 0 && (
@@ -278,6 +285,14 @@ export function BalanceWithCarryover({
                     </Trans>
                   </Text>
                 )}
+                {cardToPay > 0 && (
+                  <Text>
+                    <Trans>
+                      {{ amount: format(cardToPay, 'financial') }} of the card
+                      balance is not set aside. Budget it here to pay the card.
+                    </Trans>
+                  </Text>
+                )}
                 {showGoalStatus && GoalStatusDisplay(balanceValue, type)}
               </View>
             }
@@ -286,7 +301,7 @@ export function BalanceWithCarryover({
             triggerProps={{
               delay: 750,
               isDisabled:
-                (!showGoalStatus && creditDebt <= 0) ||
+                (!showGoalStatus && creditDebt <= 0 && cardToPay <= 0) ||
                 isNarrowWidth ||
                 tooltipDisabled,
             }}

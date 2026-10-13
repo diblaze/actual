@@ -584,22 +584,23 @@ async function createAccount({
     transfer_acct: id,
   });
 
+  const isCard =
+    creditCard && !offBudget && (await createPaymentCategory({ id, name }));
+
   if (balance != null && balance !== 0) {
     const payee = await getStartingBalancePayee();
 
     await db.insertTransaction({
       account: id,
       amount: amountToInteger(balance),
-      category: offBudget ? null : payee.category,
+      // A card's starting balance is debt from before the budget: it lowers
+      // neither To Budget nor the payment category
+      category: offBudget || isCard ? null : payee.category,
       payee: payee.id,
       date: monthUtils.currentDay(),
       cleared: true,
       starting_balance_flag: true,
     });
-  }
-
-  if (creditCard && !offBudget) {
-    await createPaymentCategory({ id, name });
   }
 
   return id;

@@ -41,7 +41,7 @@ Each month, cash spending in a category is counted before card spending. Card tr
 
 - Adding a card, reordering payment categories, and turning the feature on or off rebuild the budget.
 - The 3, 6 and 12 month average budget actions skip payment categories.
-- A card's starting balance is categorised like any other starting balance. The starting debt therefore lowers To Budget, and the same amount is set aside in the payment category.
-- Turning the feature off turns payment categories back into ordinary categories, and all numbers return to Actual's normal behaviour.
+- A card's starting balance is debt from before the budget. It is left uncategorised, so it never lowers To Budget and nothing is set aside for it. The payment category's balance shows in warning colour while it holds less than the card balance; its tooltip says how much is not set aside. Budget that amount into the payment category to pay the card; a payment beyond what the category holds is cash overspending.
+- Turning the feature off turns payment categories back into ordinary categories, and all numbers return to Actual's normal behaviour, except that a card's starting balance stays uncategorised: it still lowers neither To Budget nor any category.
 - Undo history and changes synced from older app versions can still rename or hide a payment category; renaming the card account restores its name, and a hidden payment category keeps **Show** in its menu.
 - With the feature off, a payment category can be deleted. Turning the feature back on does not recreate it; replace the card account as described above.

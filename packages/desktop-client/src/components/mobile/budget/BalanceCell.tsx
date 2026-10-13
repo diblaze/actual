@@ -14,6 +14,7 @@ import { AutoTextSize } from 'auto-text-size';
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { useCreditCardDebt } from '#hooks/useCreditCardDebt';
+import { useCreditCardToPay } from '#hooks/useCreditCardToPay';
 import { useFormat } from '#hooks/useFormat';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
@@ -67,6 +68,7 @@ export function BalanceCell({
 
   const format = useFormat();
   const creditDebt = useCreditCardDebt(category.id);
+  const cardToPay = useCreditCardToPay(category);
 
   return (
     <BalanceWithCarryover
@@ -80,6 +82,7 @@ export function BalanceCell({
       budgeted={budgeted}
       longGoal={longGoal}
       creditDebt={creditDebt}
+      cardToPay={cardToPay}
       CarryoverIndicator={MobileCarryoverIndicator}
     >
       {({ type, value, className: defaultClassName }) => (

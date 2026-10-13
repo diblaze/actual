@@ -95,12 +95,12 @@ async function setFoodBudget(month: string, amount: number) {
 }
 
 // A card payment: a transfer from checking into the card
-async function pay(amount: number, id: string) {
+async function pay(amount: number, id: string, card = 'card') {
   await tx('checking', '2017-01-20', -amount, null, {
     id: `${id}-out`,
     transfer_id: `${id}-in`,
   });
-  await tx('card', '2017-01-20', amount, null, {
+  await tx(card, '2017-01-20', amount, null, {
     id: `${id}-in`,
     transfer_id: `${id}-out`,
   });
@@ -417,23 +417,100 @@ describe('credit card payment categories', () => {
     expect(stale.value).toBeNull();
   });
 
-  it('funds the starting debt of a new card from To Budget', async () => {
+  it("leaves To Budget and the payment category alone for a new card's starting debt", async () => {
     await setup({ visa: false });
-    const id = await runHandler(accountsApp.handlers['account-create'], {
-      name: 'Mastercard',
-      balance: -50,
-      creditCard: true,
-    });
-    await settle();
-    const payment = await db.first<{ id: string }>(
-      'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
-      [id],
+    const card = await createCard('Mastercard', -50);
+    const starting = await db.first<{ category: string | null }>(
+      'SELECT category FROM transactions WHERE acct = ? AND starting_balance_flag = 1',
+      [card.id],
     );
 
-    // The starting debt is negative income, and the same amount is set aside
-    // in the payment category
-    expect(value(JAN, `leftover-${payment?.id}`)).toBe(5000);
-    expect(value(JAN, 'to-budget')).toBe(95000);
+    // Debt from before the budget: nothing to take from To Budget, nothing
+    // set aside yet
+    expect(starting?.category).toBeNull();
+    expect(value(JAN, 'to-budget')).toBe(100000);
+    expect(value(JAN, `leftover-${card.paymentId}`)).toBe(0);
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(5000);
+  });
+
+  it('pays down starting debt budgeted into the payment category', async () => {
+    await setup({ visa: false });
+    const card = await createCard('Mastercard', -500);
+    await setBudget({ category: card.paymentId, month: JAN, amount: 50000 });
+    await settle();
+    expect(value(JAN, `leftover-${card.paymentId}`)).toBe(50000);
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(0);
+    expect(value(JAN, 'to-budget')).toBe(50000);
+
+    await pay(50000, 'p1', card.id);
+    expect(value(JAN, `leftover-${card.paymentId}`)).toBe(0);
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(0);
+  });
+
+  it('shows an unbudgeted card payment as cash overspending', async () => {
+    await setup({ visa: false });
+    const card = await createCard('Mastercard', -500);
+    await pay(50000, 'p1', card.id);
+
+    expect(value(JAN, `leftover-${card.paymentId}`)).toBe(-50000);
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(0);
+    expect(value(FEB, 'to-budget')).toBe(50000);
+  });
+
+  it('shows a partly paid, unbudgeted starting debt as cash overspending', async () => {
+    await setup({ visa: false });
+    const card = await createCard('Mastercard', -1000);
+    await pay(50000, 'p1', card.id);
+
+    // 500 of the debt is still not set aside, and the 500 paid without
+    // budgeting is ordinary overspending
+    expect(value(JAN, `leftover-${card.paymentId}`)).toBe(-50000);
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(50000);
+  });
+
+  it('follows edits of the starting debt and later months', async () => {
+    await setup({ visa: false });
+    const card = await createCard('Mastercard', -500);
+    const starting = await db.first<{ id: string }>(
+      'SELECT id FROM transactions WHERE acct = ? AND starting_balance_flag = 1',
+      [card.id],
+    );
+    await db.updateTransaction({ id: starting?.id ?? '', amount: -80000 });
+    await settle();
+    expect(value(JAN, `cc-to-pay-${card.paymentId}`)).toBe(80000);
+    expect(value(FEB, `cc-to-pay-${card.paymentId}`)).toBe(80000);
+
+    await setBudget({ category: card.paymentId, month: JAN, amount: 30000 });
+    await settle();
+    expect(value(FEB, `cc-to-pay-${card.paymentId}`)).toBe(50000);
+  });
+
+  it('undoes adding a card with a starting debt', async () => {
+    await setup({ visa: false });
+    const card = await createCard('Mastercard', -500);
+    await runMutator(() => undo());
+    await settle();
+
+    const left = await db.first<{ tombstone: number }>(
+      'SELECT tombstone FROM categories WHERE id = ?',
+      [card.paymentId],
+    );
+    expect(left?.tombstone).toBe(1);
+    expect(value(JAN, 'to-budget')).toBe(100000);
+  });
+
+  it('shows unfunded card spending as not set aside', async () => {
+    await setup();
+    await overspendOnCard();
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(20000);
+
+    await setFoodBudget(JAN, 50000);
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+  });
+
+  it('creates no to-pay cell with the flag off', async () => {
+    await setup({ flag: false });
+    expect(value(JAN, 'cc-to-pay-visa')).toBeNaN();
   });
 
   it('reduces the payment category by income on the card', async () => {
@@ -746,6 +823,23 @@ describe('credit card payment categories', () => {
         { id: 'food', payment_account: null },
         { id: 'visa', payment_account: 'card' },
       ]);
+    });
+
+    it('keeps the starting balance categorised when the card option is ignored', async () => {
+      await setup({ flag: false });
+      const id = await runHandler(accountsApp.handlers['account-create'], {
+        name: 'Mastercard',
+        balance: -50,
+        creditCard: true,
+      });
+      await settle();
+
+      const starting = await db.first<{ category: string | null }>(
+        'SELECT category FROM transactions WHERE acct = ? AND starting_balance_flag = 1',
+        [id],
+      );
+      expect(starting?.category).not.toBeNull();
+      expect(value(JAN, 'to-budget')).toBe(95000);
     });
 
     it('ignores the credit card option with the feature off', async () => {
