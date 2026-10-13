@@ -513,6 +513,66 @@ describe('credit card payment categories', () => {
     expect(value(JAN, 'cc-to-pay-visa')).toBeNaN();
   });
 
+  it('treats a cash advance as money set aside to repay it', async () => {
+    await setup();
+    // A transfer from the card into checking
+    await tx('card', '2017-01-15', -10000, null, {
+      id: 'adv-out',
+      transfer_id: 'adv-in',
+    });
+    await tx('checking', '2017-01-15', 10000, null, {
+      id: 'adv-in',
+      transfer_id: 'adv-out',
+    });
+    await settle();
+
+    expect(value(JAN, 'sum-amount-visa')).toBe(10000);
+    expect(value(JAN, 'leftover-visa')).toBe(10000);
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+    expect(value(JAN, 'to-budget')).toBe(100000);
+  });
+
+  it('funds the children of a split card transaction', async () => {
+    await setup();
+    await setFoodBudget(JAN, 50000);
+    await setBudget({ category: 'dining', month: JAN, amount: 50000 });
+    await db.insertTransaction({
+      id: 'split',
+      account: 'card',
+      date: '2017-01-10',
+      amount: -30000,
+      category: null,
+      is_parent: true,
+    });
+    await db.insertTransaction({
+      id: 'split-food',
+      account: 'card',
+      date: '2017-01-10',
+      amount: -20000,
+      category: 'food',
+      is_child: true,
+      parent_id: 'split',
+    });
+    await db.insertTransaction({
+      id: 'split-dining',
+      account: 'card',
+      date: '2017-01-10',
+      amount: -10000,
+      category: 'dining',
+      is_child: true,
+      parent_id: 'split',
+    });
+    await settle();
+
+    expect(value(JAN, 'leftover-food')).toBe(30000);
+    expect(value(JAN, 'leftover-dining')).toBe(40000);
+    expect(value(JAN, 'sum-amount-visa')).toBe(30000);
+    expect(value(JAN, 'leftover-visa')).toBe(30000);
+    // The parent is not counted twice in the card balance
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+    expect(value(JAN, 'to-budget')).toBe(0);
+  });
+
   it('reduces the payment category by income on the card', async () => {
     await setup();
     await setFoodBudget(JAN, 50000);
