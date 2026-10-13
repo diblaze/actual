@@ -45,13 +45,18 @@ const DISABLED: State = {
 // also when every cell below captures it.
 let state = DISABLED;
 
-export function refresh(categories: BudgetCategory[]): void {
+// Read from the database, not `state`: a card added right after the flag is
+// turned on must not wait for the rebuild that refreshes `state`
+function isFeatureOn(): boolean {
   const pref = db.firstSync<{ value: string }>(
     'SELECT value FROM preferences WHERE id = ?',
     ['flags.ccPaymentCategories'],
   );
-  const enabled = pref?.value === 'true' && getBudgetType() === 'envelope';
-  if (!enabled) {
+  return pref?.value === 'true' && getBudgetType() === 'envelope';
+}
+
+export function refresh(categories: BudgetCategory[]): void {
+  if (!isFeatureOn()) {
     state = DISABLED;
     return;
   }
@@ -79,8 +84,8 @@ export function refresh(categories: BudgetCategory[]): void {
         (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
         (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     )) {
-    // Two devices can mark the same card offline; the first one wins and
-    // the other stays a plain category
+    // Budgets from builds that could mark a card twice may link two
+    // categories to one card; the first one wins and the other stays plain
     if (!cards.some(card => card.account === cat.payment_account)) {
       cards.push({ id: cat.id, account: cat.payment_account as string });
     }
@@ -470,75 +475,36 @@ async function findOrCreatePaymentGroup(): Promise<string> {
   return id;
 }
 
-// Marking is permanent, as in nYNAB: there is no unmark, and the payment
-// category cannot be renamed, hidden or deleted while the feature is on. A
-// card always keeps the same payment category: marking it again (after an
-// undo, or after the category was deleted with the feature off) revives it.
-// A category already named after the card in the payment group (a manual
-// workaround from before) is adopted. A no-op with the feature off.
-export async function markCreditCard({ id }: { id: string }): Promise<void> {
-  if (!state.enabled) {
+// A card gets its payment category when the account is added, as in YNAB: an
+// account cannot become a card later, and the category cannot be renamed,
+// hidden or deleted while the feature is on. A category already named after
+// the card in the payment group (a manual workaround from before) is adopted.
+// A no-op with the feature off.
+export async function createPaymentCategory({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}): Promise<void> {
+  if (!isFeatureOn()) {
     return;
   }
-  const account = await db.first<{ name: string; offbudget: number }>(
-    'SELECT name, offbudget FROM accounts WHERE id = ? AND tombstone = 0',
-    [id],
+  const groupId = await findOrCreatePaymentGroup();
+  const adopted = await db.first<{ id: string }>(
+    `SELECT id FROM categories
+      WHERE cat_group = ? AND UPPER(name) = ? AND tombstone = 0
+        AND payment_account IS NULL`,
+    [groupId, name.toUpperCase()],
   );
-  if (!account) {
-    throw new Error(`markCreditCard: account ${id} not found`);
-  }
-  if (account.offbudget) {
-    throw new Error('Only on-budget accounts can be marked as credit cards');
-  }
-
-  const linked = await db.first<{
-    id: string;
-    cat_group: string;
-    group_alive: number | null;
-    group_hidden: number | null;
-  }>(
-    `SELECT c.id, c.cat_group, g.tombstone = 0 AS group_alive,
-            g.hidden AS group_hidden
-       FROM categories c
-       LEFT JOIN category_groups g ON g.id = c.cat_group
-      WHERE c.payment_account = ?
-      ORDER BY c.tombstone, c.sort_order, c.id
-      LIMIT 1`,
-    [id],
-  );
-  const groupId = linked?.group_alive ? null : await findOrCreatePaymentGroup();
-  if (linked?.group_alive && linked.group_hidden) {
-    await db.update('category_groups', { id: linked.cat_group, hidden: 0 });
-  }
-  const adopted =
-    !linked && groupId
-      ? await db.first<{ id: string }>(
-          `SELECT id FROM categories
-            WHERE cat_group = ? AND UPPER(name) = ? AND tombstone = 0
-              AND payment_account IS NULL`,
-          [groupId, account.name.toUpperCase()],
-        )
-      : null;
-  const existing = linked ?? adopted;
-  if (!existing) {
-    await db.insertCategory({
-      name: account.name,
-      cat_group: groupId as string,
+  if (adopted) {
+    await db.update('categories', {
+      id: adopted.id,
+      name,
+      hidden: 0,
       payment_account: id,
     });
     return;
   }
-  await db.update('categories', {
-    id: existing.id,
-    name: account.name,
-    hidden: 0,
-    tombstone: 0,
-    payment_account: id,
-    ...(groupId && { cat_group: groupId }),
-  });
-  // Deleting it with a transfer forwarded it to another category; undo that
-  await db.update('category_mapping', {
-    id: existing.id,
-    transferId: existing.id,
-  });
+  await db.insertCategory({ name, cat_group: groupId, payment_account: id });
 }

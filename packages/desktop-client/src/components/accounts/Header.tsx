@@ -43,8 +43,6 @@ import { FiltersStack } from '#components/filters/FiltersStack';
 import type { SavedFilter } from '#components/filters/SavedFilterMenuButton';
 import { NotesButton } from '#components/NotesButton';
 import { SelectedTransactionsButton } from '#components/transactions/SelectedTransactionsButton';
-import { useCategories } from '#hooks/useCategories';
-import { useCreditCardsEnabled } from '#hooks/useCreditCardsEnabled';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useLocale } from '#hooks/useLocale';
@@ -736,8 +734,7 @@ type AccountMenuProps = {
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
       | 'manage-columns'
-      | 'account-group'
-      | 'mark-credit-card',
+      | 'account-group',
   ) => void;
 };
 
@@ -752,11 +749,6 @@ function AccountMenu({
   const { t } = useTranslation();
   const syncServerStatus = useSyncServerStatus();
   const newSidebarUIEnabled = useFeatureFlag('newSidebarUI');
-  const creditCardsEnabled = useCreditCardsEnabled();
-  const { data: categories } = useCategories();
-  const isCreditCard = !!categories?.list.some(
-    cat => cat.payment_account === account.id,
-  );
 
   return (
     <Menu
@@ -798,18 +790,6 @@ function AccountMenu({
             : t('Show reconciled transactions'),
         },
         { name: 'export', text: t('Export') },
-        // Marking is permanent, so the item is gone once the card is marked
-        ...(creditCardsEnabled &&
-        !account.offbudget &&
-        !account.closed &&
-        !isCreditCard
-          ? [
-              {
-                name: 'mark-credit-card',
-                text: t('Mark as credit card'),
-              } as const,
-            ]
-          : []),
         ...(account && !account.closed
           ? canSync
             ? [

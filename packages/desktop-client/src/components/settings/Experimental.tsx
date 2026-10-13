@@ -183,8 +183,8 @@ export function ExperimentalFeatures() {
               feedbackLink="https://github.com/actualbudget/actual/issues/1995"
               note={
                 <Trans>
-                  Mark a card from its account menu. Marking a card is
-                  permanent.
+                  Tick Credit card when adding the account. This cannot be
+                  changed later.
                 </Trans>
               }
             >

@@ -5,7 +5,10 @@ import * as asyncStorage from '#platform/server/asyncStorage';
 import * as connection from '#platform/server/connection';
 import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
-import { followAccountName, markCreditCard } from '#server/budget/credit-card';
+import {
+  createPaymentCategory,
+  followAccountName,
+} from '#server/budget/credit-card';
 import * as db from '#server/db';
 import {
   APIError,
@@ -64,7 +67,6 @@ export type AccountHandlers = {
   'akahu-accounts-link': typeof linkAkahuAccount;
   'enablebanking-accounts-link': typeof linkEnableBankingAccount;
   'account-create': typeof createAccount;
-  'account-mark-credit-card': typeof markCreditCard;
   'account-close': typeof closeAccount;
   'account-reopen': typeof reopenAccount;
   'account-move': typeof moveAccount;
@@ -597,7 +599,7 @@ async function createAccount({
   }
 
   if (creditCard && !offBudget) {
-    await markCreditCard({ id });
+    await createPaymentCategory({ id, name });
   }
 
   return id;
@@ -1803,7 +1805,6 @@ app.method('pluggyai-accounts-link', linkPluggyAiAccount);
 app.method('akahu-accounts-link', linkAkahuAccount);
 app.method('enablebanking-accounts-link', linkEnableBankingAccount);
 app.method('account-create', mutator(undoable(createAccount)));
-app.method('account-mark-credit-card', mutator(undoable(markCreditCard)));
 app.method('account-close', mutator(closeAccount));
 app.method('account-reopen', mutator(undoable(reopenAccount)));
 app.method('account-move', mutator(undoable(moveAccount)));
