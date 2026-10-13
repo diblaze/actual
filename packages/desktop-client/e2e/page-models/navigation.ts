@@ -13,6 +13,8 @@ type AccountEntry = {
   name: string;
   balance: number;
   offBudget: boolean;
+  // Only with the ccPaymentCategories feature on
+  creditCard?: boolean;
 };
 
 /**
@@ -160,11 +162,17 @@ export class Navigation {
       .getByRole('heading', { name: 'Add account' })
       .waitFor({ state: 'visible' });
 
-    await fillReactInput(this.page.getByLabel('Name'), data.name);
-    await fillReactInput(this.page.getByLabel('Balance'), String(data.balance));
+    // Scoped to the dialog: an open account page has an "Edit account name"
+    // button that also matches "Name"
+    const dialog = this.page.getByRole('dialog');
+    await fillReactInput(dialog.getByLabel('Name'), data.name);
+    await fillReactInput(dialog.getByLabel('Balance'), String(data.balance));
 
     if (data.offBudget) {
-      await this.page.getByLabel('Off budget').click();
+      await dialog.getByLabel('Off budget').click();
+    }
+    if (data.creditCard) {
+      await dialog.getByLabel('Credit card', { exact: true }).click();
     }
 
     await clickReactAriaButton(

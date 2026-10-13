@@ -42,6 +42,10 @@ export class SettingsPage {
   }
 
   async enableExperimentalFeature(featureName: string) {
+    await this.setExperimentalFeature(featureName, true);
+  }
+
+  async setExperimentalFeature(featureName: string, enabled: boolean) {
     await this.advancedSettingsButton.waitFor({
       state: 'visible',
       timeout: 2000,
@@ -58,7 +62,7 @@ export class SettingsPage {
       name: featureName,
     });
     await featureCheckbox.waitFor({ state: 'visible' });
-    if (!(await featureCheckbox.isChecked())) {
+    if ((await featureCheckbox.isChecked()) !== enabled) {
       await featureCheckbox.click();
     }
   }
