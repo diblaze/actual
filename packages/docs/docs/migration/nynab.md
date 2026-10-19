@@ -215,6 +215,8 @@ This matters if Actual shows money available to budget while YNAB shows `$0`, ev
 
 There is nothing to fix here. The money is available to budget, Actual is just showing it to you directly instead of hiding it in a per-card reserve. Budget it like any other `To Budget` balance, or use _Hold for Next Month_ to carry it forward instead.
 
+To keep nYNAB-style payment categories instead, tick the experimental credit card option when importing; see [Credit card payment categories](../experimental/credit-card-payments.md#importing-from-nynab).
+
 #### Hold for Next Month
 
 nYNAB calculates its `Ready to Assign` value differently than Actual's `To Budget` value.

@@ -557,8 +557,11 @@ async function importBudget({
   buffer,
   filename,
   type,
+  ccPaymentCategories,
 }: {
   type: ImportableBudgetType;
+  /** nYNAB only: import credit cards with payment categories (experimental) */
+  ccPaymentCategories?: boolean;
   /** Path to the file to import, on the engine's filesystem. */
   filepath?: string;
   /** Raw contents of the file to import; alternative to `filepath`. */
@@ -586,7 +589,9 @@ async function importBudget({
       throw new Error('Either `filepath` or `buffer` must be given');
     }
 
-    const results = await handleBudgetImport(type, name, contents);
+    const results = await handleBudgetImport(type, name, contents, {
+      ccPaymentCategories,
+    });
     if (results && results.error) {
       return results;
     }
