@@ -662,6 +662,16 @@ export async function importTransactions(
   const payees = await send('api/payees-get');
   const categories = await send('api/categories-get');
   const incomeCatId = findIdByName(categories, 'Income');
+  // nYNAB's own inflow categories, not a legacy Income group
+  const inflowIds = new Set(
+    data.categories
+      ?.filter(cat =>
+        ['To be Budgeted', 'Inflow: Ready to Assign'].some(name =>
+          equalsIgnoreCase(cat.name, name),
+        ),
+      )
+      .map(cat => cat.id),
+  );
   const startingBalanceCatId = findIdByName(categories, 'Starting Balances'); //better way to do it?
 
   const startingPayeeYNAB = findIdByName(data.payees, 'Starting Balance');
@@ -832,6 +842,22 @@ export async function importTransactions(
   await Promise.all(
     [...transactionsGrouped.keys()].map(async accountId => {
       const transactions = transactionsGrouped.get(accountId);
+      // nYNAB's To Be Budgeted never counts inflow adjustments on a card
+      // (reconciliation, interest, cashback): import them uncategorised
+      const isCard = importsAsCard(
+        data.accounts?.find(a => a.id === accountId),
+        options,
+      );
+      const cardCategory = (
+        trx: {
+          transfer_account_id?: string | null;
+          category_id?: string | null;
+        },
+        category: string | null,
+      ) =>
+        isCard && !trx.transfer_account_id && inflowIds.has(trx.category_id)
+          ? null
+          : category;
 
       const toImport = transactions
         .map(transaction => {
@@ -847,7 +873,10 @@ export async function importTransactions(
             account: entityIdMap.get(transaction.account_id),
             date: transaction.date,
             amount: amountFromYnab(transaction.amount),
-            category: entityIdMap.get(transaction.category_id) || null,
+            category: cardCategory(
+              transaction,
+              entityIdMap.get(transaction.category_id) || null,
+            ),
             cleared: ['cleared', 'reconciled'].includes(transaction.cleared),
             reconciled: transaction.cleared === 'reconciled',
             notes: buildTransactionNotes(transaction, flagNameConflicts),
@@ -861,7 +890,10 @@ export async function importTransactions(
                   return {
                     id: entityIdMap.get(subtrans.id),
                     amount: amountFromYnab(subtrans.amount),
-                    category: entityIdMap.get(subtrans.category_id) || null,
+                    category: cardCategory(
+                      subtrans,
+                      entityIdMap.get(subtrans.category_id) || null,
+                    ),
                     notes: subtrans.memo,
                     transfer_id:
                       orphanTrxIdSubtrxIdMap.get(subtrans.id) || null,
@@ -917,12 +949,7 @@ export async function importTransactions(
             entityIdMap.get(transaction.category_id) === incomeCatId
           ) {
             // A card's starting balance is debt from before the budget
-            newTransaction.category = importsAsCard(
-              data.accounts?.find(a => a.id === transaction.account_id),
-              options,
-            )
-              ? null
-              : startingBalanceCatId;
+            newTransaction.category = isCard ? null : startingBalanceCatId;
             newTransaction.payee = null;
           }
           return newTransaction;
