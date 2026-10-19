@@ -31,8 +31,9 @@ When you categorise a card purchase, the part of it the category can cover moves
 - **Funded spending:** Food has 500 and you pay 400 with the card. Food keeps 100 and the payment category gets 400.
 - **Credit overspending:** Food has 300 and you pay 500 with the card. 300 moves to the payment category and Food shows -200. That 200 is new debt on the card. Unlike cash overspending, it does not reduce next month's To Budget. If you budget more into Food later in the month, the extra covers the debt and moves to the payment category.
 - **Card payments:** a transfer from your checking account to the card reduces the payment category.
+- **Balance transfers:** a transfer between two cards moves debt only; neither payment category changes.
 - **Refunds:** a categorised refund on the card first cancels that card's unfunded debt in the category. Only the rest moves back from the payment category.
-- **Income on the card** (cashback, statement credits) reduces the payment category.
+- **Income on the card** (cashback, interest, adjustments categorised to an income category) changes To Budget only. The payment category is left alone, so the card shows that amount as not set aside (negative) or holds more than the card balance (positive) until you move the money.
 
 Each month, cash spending in a category is counted before card spending. Card transactions are then funded in date order; card transactions on the same date are funded in the order they were entered (from the bottom of that day in the register upward).
 
