@@ -224,7 +224,8 @@ export function getAccounts() {
 }
 
 export function createAccount(
-  account: Omit<APIAccountEntity, 'id'>,
+  /** `creditCard`: an on-budget credit card with its payment category (experimental) */
+  account: Omit<APIAccountEntity, 'id'> & { creditCard?: boolean },
   initialBalance?: number,
 ) {
   return send('api/account-create', { account, initialBalance });

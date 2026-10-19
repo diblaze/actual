@@ -147,7 +147,7 @@ export type ApiHandlers = {
   'api/accounts-get': () => Promise<APIAccountEntity[]>;
 
   'api/account-create': (arg: {
-    account: Omit<APIAccountEntity, 'id'>;
+    account: Omit<APIAccountEntity, 'id'> & { creditCard?: boolean };
     initialBalance?: number;
   }) => Promise<string>;
 

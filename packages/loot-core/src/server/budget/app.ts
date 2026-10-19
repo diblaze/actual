@@ -17,7 +17,7 @@ import * as budget from './base';
 import * as cleanupGroupActions from './cleanup-groups';
 import * as cleanupActions from './cleanup-template';
 import { storeNoteCleanups } from './cleanup-template-notes';
-import { isPaymentCategory } from './credit-card';
+import { isPaymentCategory, paymentCategoryName } from './credit-card';
 import * as goalActions from './goal-template';
 import { sortCategories } from './sort-categories';
 import * as goalNoteActions from './template-notes';
@@ -332,12 +332,13 @@ async function createCategory({
 
 async function updateCategory(category: CategoryEntity): Promise<void> {
   // The card a payment category belongs to is set once, by marking the card.
-  // A payment category keeps the card's name and always stays visible.
+  // A payment category keeps the card's name and is hidden exactly while the
+  // card is closed.
   const { payment_account: _paymentAccount, ...editable } = category;
   await assertPaymentCategoryStaysVisible(category.id, category.group);
   const card = isPaymentCategory(category)
-    ? await db.first<{ name: string }>(
-        `SELECT a.name FROM categories c
+    ? await db.first<{ name: string; closed: number }>(
+        `SELECT a.name, a.closed FROM categories c
            JOIN accounts a ON a.id = c.payment_account
           WHERE c.id = ?`,
         [category.id],
@@ -347,8 +348,14 @@ async function updateCategory(category: CategoryEntity): Promise<void> {
     await db.updateCategory(
       categoryModel.toDb({
         ...editable,
-        name: (card?.name ?? category.name).trim(),
-        ...(card && { hidden: false }),
+        name: card
+          ? await paymentCategoryName(
+              category.group,
+              card.name.trim(),
+              category.id,
+            )
+          : category.name.trim(),
+        ...(card && { hidden: !!card.closed }),
       }),
     );
   } catch (e) {
