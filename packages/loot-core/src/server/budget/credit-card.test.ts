@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { app as accountsApp } from '#server/accounts/app';
+import { installAPI } from '#server/api';
 import * as db from '#server/db';
 import { runHandler, runMutator } from '#server/mutators';
+import * as prefs from '#server/prefs';
 import * as sheet from '#server/sheet';
 import { undo } from '#server/undo';
+import type { ServerHandlers } from '#types/server-handlers';
 
 import { set3MonthAvg, setBudget, setCategoryCarryover } from './actions';
 import { app as budgetApp } from './app';
@@ -745,6 +748,147 @@ describe('credit card payment categories', () => {
       );
       expect(visa).toEqual({ name: 'Visa Gold', hidden: 0 });
       expect(group?.hidden).toBe(0);
+    });
+
+    describe('created through the API', () => {
+      async function apiCreate(account: {
+        name: string;
+        offbudget?: boolean;
+        creditCard?: boolean;
+      }) {
+        const handlers = installAPI({} as unknown as ServerHandlers);
+        handlers['account-create'] = accountsApp.handlers['account-create'];
+        await prefs.loadPrefs();
+        const id = await handlers['api/account-create']({ account });
+        return db.first<{ id: string }>(
+          'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
+          [id],
+        );
+      }
+
+      it('creates a card through the API', async () => {
+        await setup({ visa: false });
+        expect(
+          await apiCreate({ name: 'Mastercard', creditCard: true }),
+        ).not.toBeNull();
+      });
+
+      it('ignores creditCard for an off-budget account created through the API', async () => {
+        await setup({ visa: false });
+        expect(
+          await apiCreate({ name: 'Loan', offbudget: true, creditCard: true }),
+        ).toBeNull();
+      });
+
+      it('numbers the payment category of a card named like another card', async () => {
+        await setup({ visa: false });
+        await apiCreate({ name: 'Klarna', creditCard: true });
+        await apiCreate({ name: 'klarna', creditCard: true });
+        const names = await db.all<{ name: string }>(
+          'SELECT name FROM categories WHERE payment_account IS NOT NULL AND tombstone = 0 ORDER BY name',
+        );
+        expect(names.map(n => n.name)).toEqual(['Klarna', 'klarna (2)']);
+
+        // Editing or renaming keeps the number while the names still collide
+        const second = (await db.first<{ id: string; cat_group: string }>(
+          "SELECT id, cat_group FROM categories WHERE name = 'klarna (2)'",
+        ))!;
+        await runHandler(budgetApp.handlers['category-update'], {
+          id: second.id,
+          name: 'whatever',
+          group: second.cat_group,
+          is_income: false,
+          hidden: false,
+        });
+        const renamed = await db.first<{ name: string }>(
+          'SELECT name FROM categories WHERE id = ?',
+          [second.id],
+        );
+        expect(renamed?.name).toBe('klarna (2)');
+      });
+
+      it('hides the payment category when the card is closed through the API', async () => {
+        await setup();
+        const handlers = installAPI({} as unknown as ServerHandlers);
+        await prefs.loadPrefs();
+        await handlers['api/account-update']({
+          id: 'card',
+          fields: { closed: true },
+        });
+        const visa = await db.first<{ hidden: number }>(
+          "SELECT hidden FROM categories WHERE id = 'visa'",
+        );
+        expect(visa?.hidden).toBe(1);
+      });
+
+      it('creates a plain account through the API without creditCard', async () => {
+        await setup({ visa: false });
+        expect(await apiCreate({ name: 'Savings' })).toBeNull();
+      });
+    });
+
+    describe('hidden while the card is closed', () => {
+      async function hidden(id = 'visa') {
+        const row = await db.first<{ hidden: number }>(
+          'SELECT hidden FROM categories WHERE id = ?',
+          [id],
+        );
+        return row?.hidden;
+      }
+
+      async function closeCard() {
+        // A card without transactions is deleted rather than closed
+        await tx('card', '2017-01-05', 0, null);
+        await runHandler(accountsApp.handlers['account-close'], { id: 'card' });
+      }
+
+      it('hides the payment category when the card is closed', async () => {
+        await setup();
+        await closeCard();
+        expect(await hidden()).toBe(1);
+      });
+
+      it('shows the payment category when the card is reopened', async () => {
+        await setup();
+        await closeCard();
+        await runHandler(accountsApp.handlers['account-reopen'], {
+          id: 'card',
+        });
+        expect(await hidden()).toBe(0);
+      });
+
+      it('creates a hidden payment category for a card created closed', async () => {
+        await setup({ visa: false });
+        const id = await runHandler(accountsApp.handlers['account-create'], {
+          name: 'Old card',
+          closed: true,
+          creditCard: true,
+        });
+        const payment = await db.first<{ hidden: number }>(
+          'SELECT hidden FROM categories WHERE payment_account = ?',
+          [id],
+        );
+        expect(payment?.hidden).toBe(1);
+      });
+
+      it('hides the payment category of a card closed with the feature off', async () => {
+        await setup({ flag: false });
+        await closeCard();
+        expect(await hidden()).toBe(1);
+      });
+
+      it("keeps a closed card's payment category hidden when shown by hand", async () => {
+        await setup();
+        await closeCard();
+        await runHandler(budgetApp.handlers['category-update'], {
+          id: 'visa',
+          name: 'Visa',
+          group: 'cc',
+          is_income: false,
+          hidden: false,
+        });
+        expect(await hidden()).toBe(1);
+      });
     });
 
     describe('edge cases', () => {

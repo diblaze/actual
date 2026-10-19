@@ -448,12 +448,50 @@ export async function followAccountName(
   if (!state.enabled) {
     return;
   }
+  const payment = await db.first<{ id: string; cat_group: string }>(
+    'SELECT id, cat_group FROM categories WHERE payment_account = ? AND tombstone = 0',
+    [accountId],
+  );
+  if (payment) {
+    await db.update('categories', {
+      id: payment.id,
+      name: await paymentCategoryName(payment.cat_group, name, payment.id),
+    });
+  }
+}
+
+// The card's name, numbered when another category in the group already has it
+// (two cards named alike)
+export async function paymentCategoryName(
+  groupId: string,
+  name: string,
+  selfId = '',
+): Promise<string> {
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? name : `${name} (${n})`;
+    const taken = await db.first<{ id: string }>(
+      `SELECT id FROM categories
+        WHERE cat_group = ? AND UPPER(name) = ? AND tombstone = 0 AND id != ?`,
+      [groupId, candidate.toUpperCase(), selfId],
+    );
+    if (!taken) {
+      return candidate;
+    }
+  }
+}
+
+// A card's payment category is hidden exactly while the card is closed. Also
+// with the feature off, so the two stay in step when it is turned back on.
+export async function followAccountClosed(
+  accountId: string,
+  closed: boolean,
+): Promise<void> {
   const payment = await db.first<{ id: string }>(
     'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
     [accountId],
   );
   if (payment) {
-    await db.update('categories', { id: payment.id, name });
+    await db.update('categories', { id: payment.id, hidden: closed ? 1 : 0 });
   }
 }
 
@@ -501,9 +539,11 @@ async function findOrCreatePaymentGroup(): Promise<string> {
 export async function createPaymentCategory({
   id,
   name,
+  closed = false,
 }: {
   id: string;
   name: string;
+  closed?: boolean;
 }): Promise<boolean> {
   if (!isFeatureOn()) {
     return false;
@@ -519,11 +559,16 @@ export async function createPaymentCategory({
     await db.update('categories', {
       id: adopted.id,
       name,
-      hidden: 0,
+      hidden: closed ? 1 : 0,
       payment_account: id,
     });
     return true;
   }
-  await db.insertCategory({ name, cat_group: groupId, payment_account: id });
+  await db.insertCategory({
+    name: await paymentCategoryName(groupId, name),
+    cat_group: groupId,
+    payment_account: id,
+    hidden: closed ? 1 : 0,
+  });
   return true;
 }

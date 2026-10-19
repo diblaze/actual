@@ -41,7 +41,11 @@ import {
 import type { AmountOPType, APIScheduleEntity } from './api-models';
 import { aqlQuery } from './aql';
 import { isTrackingBudget } from './budget/actions';
-import { followAccountName, isCreditCardAccount } from './budget/credit-card';
+import {
+  followAccountClosed,
+  followAccountName,
+  isCreditCardAccount,
+} from './budget/credit-card';
 import * as cloudStorage from './cloud-storage';
 import type { RemoteFile } from './cloud-storage';
 import * as db from './db';
@@ -635,6 +639,7 @@ handlers['api/account-create'] = withMutation(async function ({
     name: account.name,
     offBudget: account.offbudget,
     closed: account.closed,
+    creditCard: account.creditCard,
     // Current the API expects an amount but it really should expect
     // an integer
     balance: initialBalance != null ? integerToAmount(initialBalance) : null,
@@ -651,6 +656,9 @@ handlers['api/account-update'] = withMutation(async function ({ id, fields }) {
   const result = await db.updateAccount({ id, ...changes });
   if (changes.name != null) {
     await followAccountName(id, changes.name);
+  }
+  if (changes.closed != null) {
+    await followAccountClosed(id, !!changes.closed);
   }
   return result;
 });

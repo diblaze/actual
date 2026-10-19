@@ -14,7 +14,7 @@ When adding a local account, tick **Credit card** (desktop and mobile). This can
 
 To turn an existing account into a card, add a new account with **Credit card** ticked, move the old account's transactions to it (select them all, then **Account**), and close the old account. Then clear the category of the moved starting balance: categorised as Starting Balances it would count as income on the card.
 
-Each card has exactly one payment category, created with the card; it cannot be made by hand or linked to another card. It is named after the card's account and follows it when you rename the account. While the feature is on, the payment category cannot be renamed, hidden or deleted, and the group holding it cannot be hidden or deleted; you can still move them.
+Each card has exactly one payment category, created with the card; it cannot be made by hand or linked to another card. It is named after the card's account and follows it when you rename the account; if another category in its group already has that name (two cards named alike), it gets a number, such as "Klarna (2)". While the feature is on, the payment category cannot be renamed, hidden or deleted, and the group holding it cannot be hidden or deleted; you can still move them. The one exception: the payment category is hidden exactly while its card is closed. Closing the card hides it, reopening the card shows it again.
 
 If the Credit Card Payments group already holds a category named after the card (for example from a manual workaround), adding the card turns that category into its payment category. Deleting a card account turns its payment category back into an ordinary category.
 
@@ -43,5 +43,5 @@ Each month, cash spending in a category is counted before card spending. Card tr
 - The 3, 6 and 12 month average budget actions skip payment categories.
 - A card's starting balance is debt from before the budget. It is left uncategorised, so it never lowers To Budget and nothing is set aside for it. The payment category's balance shows in warning colour while it holds less than the card balance; its tooltip says how much is not set aside. Budget that amount into the payment category to pay the card; a payment beyond what the category holds is cash overspending.
 - Turning the feature off turns payment categories back into ordinary categories, and all numbers return to Actual's normal behaviour, except that a card's starting balance stays uncategorised: it still lowers neither To Budget nor any category.
-- Undo history and changes synced from older app versions can still rename or hide a payment category; renaming the card account restores its name, and a hidden payment category keeps **Show** in its menu.
+- Undo history and changes synced from older app versions can still rename or hide a payment category; renaming the card account restores its name, and a hidden payment category keeps **Show** in its menu. **Show** on the payment category of a closed card is undone until the card is reopened.
 - With the feature off, a payment category can be deleted. Turning the feature back on does not recreate it; replace the card account as described above.

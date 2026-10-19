@@ -387,7 +387,7 @@ Get all accounts. Returns an array of [`Account`](#account) objects.
 
 <Method name="createAccount" args={[{ name: 'account', type: 'Account' }, { name: 'initialBalance = 0', type: 'amount?' }]} returns="Promise<id>" />
 
-Create an account with an initial balance of `initialBalance` (defaults to 0). Remember that [`amount`](#primitives) has no decimal places. Returns the `id` of the new account.
+Create an account with an initial balance of `initialBalance` (defaults to 0). Remember that [`amount`](#primitives) has no decimal places. Returns the `id` of the new account. With the experimental [credit card payment categories](../experimental/credit-card-payments.md) turned on, pass `creditCard: true` in `account` to create an on-budget card with its payment category.
 
 #### `updateAccount`
 
