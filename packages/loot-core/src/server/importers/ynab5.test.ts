@@ -4,12 +4,15 @@ import { send } from '#server/main-app';
 
 import {
   getBudgetName,
+  importAccounts,
+  importBudgets,
+  importCategories,
   importPayees,
   importScheduledTransactions,
   importTransactions,
   parseFile,
 } from './ynab5';
-import type { Payee, Transaction } from './ynab5-types';
+import type { Account, Payee, Transaction } from './ynab5-types';
 
 vi.mock('#server/main-app', () => ({
   send: vi.fn(),
@@ -167,6 +170,345 @@ describe('importTransactions', () => {
 
     expect(outImported.transfer_id).toBe(inImported.id);
     expect(inImported.transfer_id).toBe(outImported.id);
+    expect(outImported.category).toBeNull();
+    expect(inImported.category).toBeNull();
+  });
+
+  describe('starting balances', () => {
+    const startingPayee = makePayee({
+      id: 'ynab-start',
+      name: 'Starting Balance',
+    });
+
+    async function importStart(type: Account['type'], options = {}) {
+      vi.mocked(send).mockImplementation(async (name: string) => {
+        if (name === 'api/payees-get') return [];
+        if (name === 'api/categories-get') {
+          return [
+            { id: 'actual-income', name: 'Income' },
+            { id: 'actual-start', name: 'Starting Balances' },
+          ];
+        }
+        if (name === 'api/transactions-add') return null;
+        throw new Error(`Unexpected send call: ${name}`);
+      });
+      const entityIdMap = new Map([
+        ['ynab-account-1', 'actual-account-1'],
+        ['ynab-rta', 'actual-income'],
+      ]);
+      await importTransactions(
+        {
+          accounts: [makeAccount({ id: 'ynab-account-1', type })],
+          payees: [startingPayee],
+          transactions: [
+            makeTransaction({
+              id: 'txn-start',
+              amount: -5000000,
+              payee_id: 'ynab-start',
+              category_id: 'ynab-rta',
+            }),
+          ],
+          subtransactions: [],
+        } as unknown as Parameters<typeof importTransactions>[0],
+        entityIdMap,
+        new Set(),
+        undefined,
+        options,
+      );
+      const call = vi
+        .mocked(send)
+        .mock.calls.find(([name]) => name === 'api/transactions-add');
+      return call?.[1].transactions[0].category;
+    }
+
+    it("leaves a card's starting balance uncategorised when the option is set", async () => {
+      expect(
+        await importStart('creditCard', { ccPaymentCategories: true }),
+      ).toBeNull();
+    });
+
+    it("files a checking account's starting balance under Starting Balances", async () => {
+      expect(await importStart('checking', { ccPaymentCategories: true })).toBe(
+        'actual-start',
+      );
+    });
+
+    it("files a card's starting balance under Starting Balances without the option", async () => {
+      expect(await importStart('creditCard')).toBe('actual-start');
+    });
+  });
+});
+
+function makeAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: 'ynab-account-1',
+    name: 'Account',
+    type: 'checking',
+    on_budget: true,
+    closed: false,
+    deleted: false,
+    ...overrides,
+  } as Account;
+}
+
+describe('importAccounts', () => {
+  async function run(accounts: Account[], options = {}) {
+    let n = 0;
+    vi.mocked(send).mockImplementation(async () => `actual-${++n}`);
+    const entityIdMap = new Map<string, string>();
+    await importAccounts(
+      { accounts } as Parameters<typeof importAccounts>[0],
+      entityIdMap,
+      vi.fn(),
+      options,
+    );
+    return vi.mocked(send).mock.calls;
+  }
+
+  const card = makeAccount({ id: 'card', name: 'AMEX', type: 'creditCard' });
+  const cc = { ccPaymentCategories: true };
+
+  it('turns the credit card feature on before creating accounts when the option is set', async () => {
+    const calls = await run([card], cc);
+    expect(calls[0]).toEqual([
+      'preferences/save',
+      { id: 'flags.ccPaymentCategories', value: 'true' },
+    ]);
+  });
+
+  it('leaves the credit card feature alone and sends stock account-create args without the option', async () => {
+    const calls = await run([card]);
+    expect(calls).toEqual([
+      [
+        'api/account-create',
+        { account: { name: 'AMEX', offbudget: false, closed: false } },
+      ],
+    ]);
+  });
+
+  it('turns the feature on even when the export has no card accounts', async () => {
+    const calls = await run([makeAccount()], cc);
+    expect(calls[0][0]).toBe('preferences/save');
+  });
+
+  it('creates on-budget creditCard and lineOfCredit accounts as credit cards', async () => {
+    const calls = await run(
+      [card, makeAccount({ id: 'loc', name: 'LOC', type: 'lineOfCredit' })],
+      cc,
+    );
+    const created = calls.filter(([name]) => name === 'api/account-create');
+    expect(created.map(([, args]) => args.account.creditCard)).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it('creates a closed card as a closed credit card', async () => {
+    const calls = await run([{ ...card, closed: true }], cc);
+    expect(calls[1][1].account).toMatchObject({
+      closed: true,
+      creditCard: true,
+    });
+  });
+
+  it('keeps an off-budget card off budget without creditCard', async () => {
+    const calls = await run([{ ...card, on_budget: false }], cc);
+    expect(calls[1][1].account).toMatchObject({
+      offbudget: true,
+      creditCard: false,
+    });
+  });
+
+  it('does not mark checking, savings or cash as credit cards', async () => {
+    const calls = await run(
+      (['checking', 'savings', 'cash'] as const).map((type, i) =>
+        makeAccount({ id: `a${i}`, type }),
+      ),
+      cc,
+    );
+    const created = calls.filter(([name]) => name === 'api/account-create');
+    expect(created.map(([, args]) => args.account.creditCard)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('creates accounts one after another', async () => {
+    let pending = 0;
+    let overlapped = false;
+    vi.mocked(send).mockImplementation(async (name: string) => {
+      if (name !== 'api/account-create') return null;
+      overlapped ||= pending > 0;
+      pending++;
+      await new Promise(resolve => setTimeout(resolve, 5));
+      pending--;
+      return 'id';
+    });
+    await importAccounts(
+      { accounts: [card, { ...card, id: 'card2' }] } as Parameters<
+        typeof importAccounts
+      >[0],
+      new Map(),
+      vi.fn(),
+      cc,
+    );
+    expect(overlapped).toBe(false);
+  });
+});
+
+describe('credit card payment categories', () => {
+  const ccGroup = {
+    id: 'ynab-cc',
+    name: 'Credit Card Payments',
+    deleted: false,
+  };
+  const data = {
+    category_groups: [ccGroup],
+    categories: [
+      {
+        id: 'ynab-amex',
+        name: 'AMEX',
+        category_group_id: 'ynab-cc',
+        deleted: false,
+      },
+      {
+        id: 'ynab-visa',
+        name: 'Visa',
+        category_group_id: 'ynab-cc',
+        deleted: false,
+      },
+    ],
+    months: [
+      {
+        month: '2026-01-01',
+        categories: [
+          { id: 'ynab-amex', category_group_id: 'ynab-cc', budgeted: 50000 },
+          { id: 'ynab-visa', category_group_id: 'ynab-cc', budgeted: 70000 },
+        ],
+      },
+    ],
+  } as unknown as Parameters<typeof importCategories>[0];
+
+  async function mapCategories() {
+    vi.mocked(send).mockImplementation(async (name: string) => {
+      if (name === 'api/categories-get') {
+        return [
+          { id: 'actual-income', name: 'Income', group_id: 'g-income' },
+          { id: 'actual-amex', name: 'AMEX', group_id: 'actual-cc' },
+          { id: 'other-visa', name: 'Visa', group_id: 'other' },
+        ];
+      }
+      if (name === 'api/category-groups-get') {
+        return [
+          { id: 'actual-cc', name: 'Credit Card Payments' },
+          { id: 'other', name: 'Other' },
+        ];
+      }
+      return 'created';
+    });
+    const entityIdMap = new Map<string, string>();
+    await importCategories(data, entityIdMap, vi.fn(), {
+      ccPaymentCategories: true,
+    });
+    return entityIdMap;
+  }
+
+  it('maps a YNAB payment category to the created payment category', async () => {
+    const entityIdMap = await mapCategories();
+    expect(entityIdMap.get('ynab-amex')).toBe('actual-amex');
+    expect(
+      vi
+        .mocked(send)
+        .mock.calls.some(([name]) => name === 'api/category-create'),
+    ).toBe(false);
+  });
+
+  it('maps two cards named alike to their own payment categories', async () => {
+    vi.mocked(send).mockImplementation(async (name: string) => {
+      if (name === 'api/categories-get') {
+        return [
+          { id: 'actual-k1', name: 'Klarna', group_id: 'actual-cc' },
+          { id: 'actual-k2', name: 'klarna (2)', group_id: 'actual-cc' },
+        ];
+      }
+      if (name === 'api/category-groups-get') {
+        return [{ id: 'actual-cc', name: 'Credit Card Payments' }];
+      }
+      return 'created';
+    });
+    const entityIdMap = new Map<string, string>();
+    await importCategories(
+      {
+        category_groups: [ccGroup],
+        categories: [
+          {
+            id: 'y1',
+            name: 'Klarna',
+            category_group_id: 'ynab-cc',
+            deleted: false,
+          },
+          {
+            id: 'y2',
+            name: 'klarna',
+            category_group_id: 'ynab-cc',
+            deleted: false,
+          },
+        ],
+      } as unknown as Parameters<typeof importCategories>[0],
+      entityIdMap,
+      vi.fn(),
+      { ccPaymentCategories: true },
+    );
+    expect(entityIdMap.get('y1')).toBe('actual-k1');
+    expect(entityIdMap.get('y2')).toBe('actual-k2');
+  });
+
+  it('skips a YNAB payment category without a created counterpart', async () => {
+    const entityIdMap = await mapCategories();
+    expect(entityIdMap.has('ynab-visa')).toBe(false);
+  });
+
+  async function budgets() {
+    vi.mocked(send).mockResolvedValue(null);
+    await importBudgets(data, new Map([['ynab-amex', 'actual-amex']]), vi.fn());
+    return vi
+      .mocked(send)
+      .mock.calls.filter(([name]) => name === 'api/budget-set-amount')
+      .map(([, args]) => args);
+  }
+
+  it('sets the budgeted amount of a mapped payment category', async () => {
+    expect(await budgets()).toContainEqual({
+      month: '2026-01',
+      categoryId: 'actual-amex',
+      amount: 5000,
+    });
+  });
+
+  it('skips the budgeted amount of an unmapped payment category', async () => {
+    expect(await budgets()).toHaveLength(1);
+  });
+
+  it('sets no payment category budgets without the option', async () => {
+    vi.mocked(send).mockImplementation(async (name: string) => {
+      if (name === 'api/categories-get') {
+        return [{ id: 'actual-amex', name: 'AMEX', group_id: 'actual-cc' }];
+      }
+      return null;
+    });
+    const entityIdMap = new Map<string, string>();
+    await importCategories(data, entityIdMap, vi.fn());
+    await importBudgets(data, entityIdMap, vi.fn());
+    expect(
+      vi
+        .mocked(send)
+        .mock.calls.some(
+          ([name]) =>
+            name === 'api/budget-set-amount' ||
+            name === 'api/category-groups-get',
+        ),
+    ).toBe(false);
   });
 });
 

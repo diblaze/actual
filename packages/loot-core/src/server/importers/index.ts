@@ -8,10 +8,15 @@ import * as YNAB5 from './ynab5';
 
 export type ImportableBudgetType = 'ynab4' | 'ynab5' | 'actual';
 
+export type ImportOptions = {
+  /** nYNAB only: import credit cards with payment categories (experimental) */
+  ccPaymentCategories?: boolean;
+};
+
 type Importer = {
   parseFile(buffer: Buffer): unknown;
   getBudgetName(filepath: string, data: unknown): string | null;
-  doImport(data: unknown): Promise<void>;
+  doImport(data: unknown, options?: ImportOptions): Promise<void>;
 };
 
 const importers: Record<Exclude<ImportableBudgetType, 'actual'>, Importer> = {
@@ -23,6 +28,7 @@ export async function handleBudgetImport(
   type: ImportableBudgetType,
   filepath: string,
   buffer: Buffer,
+  options: ImportOptions = {},
 ) {
   if (type === 'actual') {
     return importActual(filepath, buffer);
@@ -47,7 +53,7 @@ export async function handleBudgetImport(
       logger.error('failed to start import', e);
       return { error: 'unknown' };
     }
-    await importer.doImport(data);
+    await importer.doImport(data, options);
   } catch (e) {
     await handlers['api/abort-import']();
     logger.error('failed to run import', e);
