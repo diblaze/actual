@@ -364,7 +364,7 @@ describe('credit card payment categories', () => {
       await settle();
     }
 
-    it('funds same-day card spending in register order', async () => {
+    it('funds equal same-day card spending in register order', async () => {
       await sameDay(1, 2);
 
       expect(value(JAN, 'leftover-amex')).toBe(20000);
@@ -383,6 +383,34 @@ describe('credit card payment categories', () => {
       expect(value(JAN, 'leftover-visa')).toBe(20000);
       expect(value(JAN, 'leftover-amex')).toBe(10000);
       expect(value(JAN, 'cc-debt-food-amex')).toBe(10000);
+    });
+
+    it('funds the largest same-day purchase first', async () => {
+      await setup({ amex: true });
+      await setFoodBudget(JAN, 30000);
+      await tx('card', '2017-01-10', -10000, 'food', { sort_order: 1 });
+      await tx('card2', '2017-01-10', -25000, 'food', { sort_order: 2 });
+      await settle();
+
+      expect(value(JAN, 'leftover-amex')).toBe(25000);
+      expect(value(JAN, 'leftover-visa')).toBe(5000);
+      expect(value(JAN, 'cc-debt-food-visa')).toBe(5000);
+      expect(value(JAN, 'cc-debt-food-amex')).toBe(0);
+      expect(value(JAN, 'leftover-food')).toBe(-5000);
+      expect(value(JAN, 'cash-leftover-food')).toBe(0);
+    });
+
+    it('funds earlier card spending before later spending on another card', async () => {
+      await setup({ amex: true });
+      await setFoodBudget(JAN, 30000);
+      await tx('card2', '2017-01-05', -10000, 'food');
+      await tx('card', '2017-01-10', -25000, 'food');
+      await settle();
+
+      expect(value(JAN, 'leftover-amex')).toBe(10000);
+      expect(value(JAN, 'leftover-visa')).toBe(20000);
+      expect(value(JAN, 'cc-debt-food-visa')).toBe(5000);
+      expect(value(JAN, 'cc-debt-food-amex')).toBe(0);
     });
 
     it('covers carried debt in payment-category order', async () => {

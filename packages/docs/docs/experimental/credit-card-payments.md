@@ -35,7 +35,7 @@ When you categorise a card purchase, the part of it the category can cover moves
 - **Refunds:** a categorised refund on the card first cancels that card's unfunded debt in the category. Only the rest moves back from the payment category.
 - **Income on the card** (cashback, interest, adjustments categorised to an income category) changes To Budget only. The payment category is left alone, so the card shows that amount as not set aside (negative) or holds more than the card balance (positive) until you move the money.
 
-Each month, cash spending in a category is counted before card spending. Card transactions are then funded in date order; card transactions on the same date are funded in the order they were entered (from the bottom of that day in the register upward).
+Each month, cash spending in a category is counted before card spending. Card transactions are then funded in date order; card transactions on the same date are funded largest first (each line of a split counts on its own); equal amounts are funded in the order they were entered (from the bottom of that day in the register upward).
 
 ## Rollover overspending
 

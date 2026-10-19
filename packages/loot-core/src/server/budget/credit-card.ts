@@ -239,8 +239,9 @@ export function createCells(
 
 // Cash is counted first: the month's non-card activity, then (with rollover
 // on) carried card debt is covered in payment-category order, then card
-// transactions are funded in register order. A card refund first cancels that
-// card's unfunded debt; only the rest moves back out of the payment category.
+// transactions are funded in date order, the largest outflow first within a
+// day (register order breaks ties). A card refund first cancels that card's
+// unfunded debt; only the rest moves back out of the payment category.
 function walk(
   catId: string,
   cards: Card[],
@@ -260,7 +261,7 @@ function walk(
        LEFT JOIN accounts a ON a.id = t.account
      WHERE t.date >= ? AND t.date <= ? AND a.offbudget = 0
        AND t.category = ? AND t.account IN (${cards.map(() => '?').join(', ')})
-     ORDER BY t.date, t.starting_balance_flag DESC, t.sort_order, t.id DESC`,
+     ORDER BY t.date, t.starting_balance_flag DESC, t.amount, t.sort_order, t.id DESC`,
     [start, end, catId, ...cards.map(card => card.account)],
     true,
   );
