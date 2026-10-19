@@ -182,6 +182,63 @@ describe('credit card payment categories', () => {
     expect(value(FEB, 'to-budget')).toBe(70000);
   });
 
+  describe('transfers between cards', () => {
+    async function legs(from: string, to: string, amount: number, id: string) {
+      await tx(from, '2017-01-20', -amount, null, {
+        id: `${id}-out`,
+        transfer_id: `${id}-in`,
+      });
+      await tx(to, '2017-01-20', amount, null, {
+        id: `${id}-in`,
+        transfer_id: `${id}-out`,
+      });
+      await settle();
+    }
+
+    it('leaves both payment categories alone on a transfer between two cards', async () => {
+      await setup({ amex: true });
+      await setFoodBudget(JAN, 30000);
+      await tx('card', '2017-01-10', -30000, 'food');
+      await settle();
+      await legs('card2', 'card', 30000, 'bt');
+
+      expect(value(JAN, 'leftover-visa')).toBe(30000);
+      expect(value(JAN, 'leftover-amex')).toBe(0);
+      expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+      expect(value(JAN, 'cc-to-pay-amex')).toBe(30000);
+      expect(value(JAN, 'to-budget')).toBe(70000);
+    });
+
+    it('recounts a balance transfer re-pointed to checking as a payment', async () => {
+      await setup({ amex: true });
+      await setFoodBudget(JAN, 30000);
+      await tx('card', '2017-01-10', -30000, 'food');
+      await settle();
+      await legs('card2', 'card', 30000, 'bt');
+      const checkingPayee = await db.first<{ id: string }>(
+        "SELECT id FROM payees WHERE transfer_acct = 'checking'",
+      );
+      await db.updateTransaction({ id: 'bt-out', account: 'checking' });
+      await db.updateTransaction({ id: 'bt-in', payee: checkingPayee?.id });
+      await settle();
+
+      expect(value(JAN, 'leftover-visa')).toBe(0);
+      expect(value(JAN, 'leftover-amex')).toBe(0);
+      expect(value(JAN, 'cc-to-pay-amex')).toBe(0);
+    });
+
+    it('counts an uncategorised transfer from an off-budget account as a payment', async () => {
+      await setup();
+      await db.insertAccount({ id: 'loan', name: 'Loan', offbudget: 1 });
+      await setFoodBudget(JAN, 30000);
+      await tx('card', '2017-01-10', -30000, 'food');
+      await settle();
+      await legs('loan', 'card', 10000, 'ln');
+
+      expect(value(JAN, 'leftover-visa')).toBe(20000);
+    });
+  });
+
   it('moves a refund back from the payment category', async () => {
     await setup();
     await setFoodBudget(JAN, 50000);
@@ -243,10 +300,13 @@ describe('credit card payment categories', () => {
   it('leaves the budget untouched with the flag off', async () => {
     await setup({ flag: false });
     await overspendOnCard();
+    await pay(30000, 'p1');
+    await tx('card', '2017-01-25', 5000, 'income');
+    await settle();
 
     expect(value(JAN, 'leftover-food')).toBe(-20000);
     expect(value(JAN, 'sum-amount-visa')).toBe(0);
-    expect(value(FEB, 'to-budget')).toBe(50000);
+    expect(value(FEB, 'to-budget')).toBe(55000);
     expect(sheet.get().hasCell('budget201701!cc-debt-food-visa')).toBe(false);
   });
 
@@ -576,16 +636,29 @@ describe('credit card payment categories', () => {
     expect(value(JAN, 'to-budget')).toBe(0);
   });
 
-  it('reduces the payment category by income on the card', async () => {
+  it('leaves the payment category alone on income on the card', async () => {
     await setup();
     await setFoodBudget(JAN, 50000);
     await tx('card', '2017-01-10', -40000, 'food');
     await tx('card', '2017-01-20', 5000, 'income');
     await settle();
 
-    expect(value(JAN, 'sum-amount-visa')).toBe(35000);
-    expect(value(JAN, 'leftover-visa')).toBe(35000);
+    expect(value(JAN, 'sum-amount-visa')).toBe(40000);
+    expect(value(JAN, 'leftover-visa')).toBe(40000);
     expect(value(JAN, 'to-budget')).toBe(55000);
+  });
+
+  it('leaves the card underfunded on negative income on the card', async () => {
+    await setup();
+    await setFoodBudget(JAN, 50000);
+    await tx('card', '2017-01-10', -40000, 'food');
+    await tx('card', '2017-01-20', -5000, 'income');
+    await settle();
+
+    expect(value(JAN, 'leftover-visa')).toBe(40000);
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(5000);
+    expect(value(FEB, 'cc-to-pay-visa')).toBe(5000);
+    expect(value(JAN, 'to-budget')).toBe(45000);
   });
 
   it('keeps working on values restored from the cache', async () => {
@@ -651,7 +724,7 @@ describe('credit card payment categories', () => {
     await settle();
 
     expect(value(JAN, 'cc-moved-travel-visa')).toBe(5000);
-    expect(value(JAN, 'sum-amount-visa')).toBe(3000);
+    expect(value(JAN, 'sum-amount-visa')).toBe(5000);
   });
 
   it('follows card payments that are edited or deleted', async () => {
@@ -922,10 +995,10 @@ describe('credit card payment categories', () => {
         await db.updateTransaction({ id: 'p1-in', category: 'income' });
         await settle();
 
-        // Now income on the card: To Budget grows, the payment category gives
-        // the same amount back
+        // Now income on the card: To Budget grows, the payment category keeps
+        // what was moved into it
         expect(value(JAN, 'to-budget')).toBe(100000);
-        expect(value(JAN, 'leftover-visa')).toBe(0);
+        expect(value(JAN, 'leftover-visa')).toBe(30000);
       });
 
       it('refuses a category update into a hidden group', async () => {

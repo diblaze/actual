@@ -31,14 +31,12 @@ type State = {
   // Payment categories in payment-category order (sort_order, id)
   cards: Card[];
   expenseIds: string[];
-  incomeIds: string[];
 };
 
 const DISABLED: State = {
   enabled: false,
   cards: [],
   expenseIds: [],
-  incomeIds: [],
 };
 
 // Module state instead of sheet meta: refreshed by every budget build, which is
@@ -98,7 +96,6 @@ export function refresh(categories: BudgetCategory[]): void {
     expenseIds: categories
       .filter(cat => !cat.is_income && !cardIds.has(cat.id))
       .map(cat => cat.id),
-    incomeIds: categories.filter(cat => cat.is_income).map(cat => cat.id),
   };
 }
 
@@ -138,12 +135,11 @@ export function createPaymentActivity(
   if (!card) {
     return;
   }
+  const cardAccounts = state.cards.map(c => c.account);
 
   sheet.get().createDynamic(sheetName, `sum-amount-${cat.id}`, {
     initialValue: 0,
-    dependencies: [...state.expenseIds, ...state.incomeIds].map(
-      id => `cc-moved-${id}-${card.id}`,
-    ),
+    dependencies: state.expenseIds.map(id => `cc-moved-${id}-${card.id}`),
     run: (...moved: unknown[]) => {
       const [row] = db.runQuery<{ direct: number | null; payments: number }>(
         `SELECT SUM(CASE WHEN t.category = ? THEN t.amount ELSE 0 END) AS direct,
@@ -152,8 +148,13 @@ export function createPaymentActivity(
            LEFT JOIN accounts a ON a.id = t.account
           WHERE t.date >= ? AND t.date <= ? AND a.offbudget = 0
             AND (t.category = ? OR
-                 (t.account = ? AND t.category IS NULL AND t.transfer_id IS NOT NULL))`,
-        [cat.id, start, end, cat.id, card.account],
+                 (t.account = ? AND t.category IS NULL AND t.transfer_id IS NOT NULL
+                  -- A transfer from or to another card only moves debt
+                  AND NOT EXISTS (
+                    SELECT 1 FROM v_transactions_internal_alive o
+                     WHERE o.id = t.transfer_id
+                       AND o.account IN (${cardAccounts.map(() => '?').join(', ')}))))`,
+        [cat.id, start, end, cat.id, card.account, ...cardAccounts],
         true,
       );
       return safeNumber(
@@ -190,34 +191,12 @@ export function createCells(
   start: number,
   end: number,
 ) {
-  if (!state.enabled || isPaymentCategory(cat)) {
+  // Income on a card (cashback, interest, adjustments) changes To Budget only,
+  // as in nYNAB: the payment category is left alone
+  if (!state.enabled || cat.is_income || isPaymentCategory(cat)) {
     return;
   }
   const { cards } = state;
-
-  if (cat.is_income) {
-    // Income categorised on a card (cashback, statement credits) reduces what
-    // the payment category needs to hold.
-    for (const card of cards) {
-      sheet.get().createDynamic(sheetName, `cc-moved-${cat.id}-${card.id}`, {
-        initialValue: 0,
-        // Dependency only so stock recomputes of the category re-run this
-        dependencies: [`sum-amount-${cat.id}`],
-        run: () => {
-          const [row] = db.runQuery<{ amount: number | null }>(
-            `SELECT SUM(t.amount) AS amount FROM v_transactions_internal_alive t
-               LEFT JOIN accounts a ON a.id = t.account
-             WHERE t.date >= ? AND t.date <= ? AND a.offbudget = 0
-               AND t.category = ? AND t.account = ?`,
-            [start, end, cat.id, card.account],
-            true,
-          );
-          return -number(row?.amount);
-        },
-      });
-    }
-    return;
-  }
 
   const walkDeps = [
     `budget-${cat.id}`,
@@ -337,7 +316,7 @@ function walk(
 export function handleCategoryDeps(
   cat: BudgetCategory,
 ): Array<[string, string[]]> {
-  if (!state.enabled || isPaymentCategory(cat)) {
+  if (!state.enabled || cat.is_income || isPaymentCategory(cat)) {
     return [];
   }
   return state.cards.map(card => [
@@ -363,6 +342,16 @@ export function handleTransactionChange(
   );
 
   if (transaction.category) {
+    // Any categorised card change moves the card balance; recomputing the
+    // card's sum-amount reaches cc-to-pay in this and later months. Income on
+    // the card needs it, as no cc-moved cell links it to the card.
+    if (
+      ['amount', 'date', 'acct', 'tombstone', 'category'].some(field =>
+        changedFields.has(field),
+      )
+    ) {
+      sheet.get().recompute(resolveName(sheetName, `sum-amount-${card.id}`));
+    }
     // Reordering same-day card transactions changes which card gets funded
     if (changedFields.has('sort_order')) {
       sheet
@@ -376,8 +365,11 @@ export function handleTransactionChange(
       field => changedFields.has(field),
     )
   ) {
-    // Card payments
-    sheet.get().recompute(resolveName(sheetName, `sum-amount-${card.id}`));
+    // Card payments. Every card: whether a transfer counts depends on the
+    // account of its other leg, which may be another card's transaction.
+    for (const c of state.cards) {
+      sheet.get().recompute(resolveName(sheetName, `sum-amount-${c.id}`));
+    }
   }
 }
 
