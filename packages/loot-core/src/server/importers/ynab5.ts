@@ -12,6 +12,7 @@ import type { RecurConfig, RecurPattern, RuleEntity } from '#types/models';
 import { runImportSteps } from './progress';
 import type { ImportTick } from './progress';
 import type {
+  Account,
   Budget,
   Payee,
   ScheduledSubtransaction,
@@ -19,6 +20,8 @@ import type {
   Subtransaction,
   Transaction,
 } from './ynab5-types';
+
+import type { ImportOptions } from './index';
 
 const MAX_RETRY = 20;
 
@@ -269,38 +272,96 @@ function buildRuleUpdate(
   };
 }
 
-function importAccounts(
-  data: Budget,
-  entityIdMap: Map<string, string>,
-  tick: ImportTick,
-) {
-  return Promise.all(
-    data.accounts.map(async account => {
-      if (!account.deleted) {
-        const id = await send('api/account-create', {
-          account: {
-            name: account.name,
-            offbudget: account.on_budget ? false : true,
-            closed: account.closed,
-          },
-        });
-        entityIdMap.set(account.id, id);
-        tick();
-      }
-    }),
+// With the option, an on-budget card becomes a fork credit card with its own
+// payment category
+function importsAsCard(
+  account: Account | undefined,
+  options: ImportOptions,
+): boolean {
+  return (
+    !!options.ccPaymentCategories &&
+    !!account?.on_budget &&
+    (account.type === 'creditCard' || account.type === 'lineOfCredit')
   );
 }
 
-async function importCategories(
+export async function importAccounts(
   data: Budget,
   entityIdMap: Map<string, string>,
   tick: ImportTick,
+  options: ImportOptions = {},
+) {
+  if (options.ccPaymentCategories) {
+    // The feature reads the flag from the database, so cards created below
+    // get their payment categories
+    await send('preferences/save', {
+      id: 'flags.ccPaymentCategories',
+      value: 'true',
+    });
+  }
+  // One at a time: concurrent cards would each create a payment group
+  for (const account of data.accounts) {
+    if (!account.deleted) {
+      const id = await send('api/account-create', {
+        account: {
+          name: account.name,
+          offbudget: account.on_budget ? false : true,
+          closed: account.closed,
+          ...(options.ccPaymentCategories && {
+            creditCard: importsAsCard(account, options),
+          }),
+        },
+      });
+      entityIdMap.set(account.id, id);
+      tick();
+    }
+  }
+}
+
+export async function importCategories(
+  data: Budget,
+  entityIdMap: Map<string, string>,
+  tick: ImportTick,
+  options: ImportOptions = {},
 ) {
   // Hidden categories are put in its own group by YNAB,
   // so it's already handled.
 
   const categories = await send('api/categories-get');
   const incomeCatId = findIdByName(categories, 'Income');
+  // Payment categories the imported cards got, matched to YNAB's by name
+  const paymentGroupId = options.ccPaymentCategories
+    ? findIdByName(
+        await send('api/category-groups-get'),
+        'Credit Card Payments',
+      )
+    : undefined;
+  const paymentCategories = paymentGroupId
+    ? categories.filter(cat => cat.group_id === paymentGroupId)
+    : [];
+  // Exact names first; cards named alike got numbered categories ("Klarna (2)")
+  const paymentIdByYnabId = new Map<string, string>();
+  const ynabPaymentCategories = data.categories.filter(
+    cat =>
+      !cat.deleted &&
+      cat.category_group_id ===
+        findIdByName(data.category_groups, 'Credit Card Payments'),
+  );
+  for (const sameName of [
+    (actual: string, ynab: string) => actual === ynab,
+    (actual: string, ynab: string) =>
+      equalsIgnoreCase(actual.replace(/ \(\d+\)$/, ''), ynab),
+  ]) {
+    for (const ynabCat of ynabPaymentCategories) {
+      const payment = paymentCategories.find(c =>
+        sameName(c.name, ynabCat.name),
+      );
+      if (!paymentIdByYnabId.has(ynabCat.id) && payment) {
+        paymentIdByYnabId.set(ynabCat.id, payment.id);
+        paymentCategories.splice(paymentCategories.indexOf(payment), 1);
+      }
+    }
+  }
   const ynabIncomeCategories = ['To be Budgeted', 'Inflow: Ready to Assign'];
 
   function checkSpecialCat(cat) {
@@ -427,7 +488,13 @@ async function importCategories(
               entityIdMap.set(cat.id, id);
               break;
             }
-            case 'creditCard': // ignores it
+            case 'creditCard': {
+              const paymentId = paymentIdByYnabId.get(cat.id);
+              if (paymentId) {
+                entityIdMap.set(cat.id, paymentId);
+              }
+              break;
+            }
             case 'internal': // uncategorized is ignored too, handled by actual
               break;
             default: {
@@ -590,6 +657,7 @@ export async function importTransactions(
   entityIdMap: Map<string, string>,
   flagNameConflicts: Set<string>,
   tick?: ImportTick,
+  options: ImportOptions = {},
 ) {
   const payees = await send('api/payees-get');
   const categories = await send('api/categories-get');
@@ -848,7 +916,13 @@ export async function importTransactions(
             transaction.payee_id === startingPayeeYNAB &&
             entityIdMap.get(transaction.category_id) === incomeCatId
           ) {
-            newTransaction.category = startingBalanceCatId;
+            // A card's starting balance is debt from before the budget
+            newTransaction.category = importsAsCard(
+              data.accounts?.find(a => a.id === transaction.account_id),
+              options,
+            )
+              ? null
+              : startingBalanceCatId;
             newTransaction.payee = null;
           }
           return newTransaction;
@@ -1128,15 +1202,13 @@ export async function importScheduledTransactions(
   }
 }
 
-async function importBudgets(
+export async function importBudgets(
   data: Budget,
   entityIdMap: Map<string, string>,
   tick: ImportTick,
 ) {
-  // There should be info in the docs to deal with
-  // no credit card category and how YNAB and Actual
-  // handle differently the amount To be Budgeted
-  // i.e. Actual considers the cc debt while YNAB doesn't
+  // Credit card payment categories are budgeted only when the import created
+  // them (ccPaymentCategories); otherwise they are unmapped and skipped.
   //
   // Also, there could be a way to set rollover using
   // Deferred Income Subcat and Immediate Income Subcat
@@ -1146,10 +1218,6 @@ async function importBudgets(
   const internalCatIdYnab = findIdByName(
     data.category_groups,
     'Internal Master Category',
-  );
-  const creditcardCatIdYnab = findIdByName(
-    data.category_groups,
-    'Credit Card Payments',
   );
 
   await send('api/batch-budget-start');
@@ -1162,11 +1230,7 @@ async function importBudgets(
           const catId = entityIdMap.get(catBudget.id);
           const amount = Math.round(catBudget.budgeted / 10);
 
-          if (
-            !catId ||
-            catBudget.category_group_id === internalCatIdYnab ||
-            catBudget.category_group_id === creditcardCatIdYnab
-          ) {
+          if (!catId || catBudget.category_group_id === internalCatIdYnab) {
             return;
           }
 
@@ -1204,7 +1268,7 @@ export function getBudgetName(_filepath: string, data: Budget) {
   return data.budget_name || data.name;
 }
 
-export async function doImport(data: Budget) {
+export async function doImport(data: Budget, options: ImportOptions = {}) {
   const entityIdMap = new Map<string, string>();
   const flagNameConflicts = getFlagNameConflicts(data);
 
@@ -1212,12 +1276,12 @@ export async function doImport(data: Budget) {
     {
       step: 'accounts',
       total: countLive(data.accounts),
-      run: tick => importAccounts(data, entityIdMap, tick),
+      run: tick => importAccounts(data, entityIdMap, tick, options),
     },
     {
       step: 'categories',
       total: countLive(data.category_groups) + countLive(data.categories),
-      run: tick => importCategories(data, entityIdMap, tick),
+      run: tick => importCategories(data, entityIdMap, tick, options),
     },
     {
       step: 'payees',
@@ -1240,7 +1304,7 @@ export async function doImport(data: Budget) {
       step: 'transactions',
       total: data.transactions.length,
       run: tick =>
-        importTransactions(data, entityIdMap, flagNameConflicts, tick),
+        importTransactions(data, entityIdMap, flagNameConflicts, tick, options),
     },
     {
       step: 'scheduled-transactions',

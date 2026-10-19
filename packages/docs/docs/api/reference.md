@@ -868,9 +868,9 @@ Load a budget file. If the file exists locally, it will load from there. Otherwi
 
 #### `importBudget`
 
-<Method name="importBudget" args={[{ name: 'input', type: 'string | ArrayBuffer | Uint8Array' }, { name: 'options', type: "{ type?: 'actual' | 'ynab4' | 'ynab5', filename?: string }?" }]} returns="Promise<{ id: string }>" />
+<Method name="importBudget" args={[{ name: 'input', type: 'string | ArrayBuffer | Uint8Array' }, { name: 'options', type: "{ type?: 'actual' | 'ynab4' | 'ynab5', filename?: string, ccPaymentCategories?: boolean }?" }]} returns="Promise<{ id: string }>" />
 
-Import a budget from an exported file and load it. `input` is either a path to the file or the raw file contents. By default the file is treated as an Actual export (a `.zip` file containing `db.sqlite` and `metadata.json`); pass `type: 'ynab4'` or `type: 'ynab5'` to import a YNAB export instead. When passing raw contents, you can supply the original file name with `filename` — some import types use it to derive the budget name. Returns the id of the imported budget, which is now the loaded budget.
+Import a budget from an exported file and load it. `input` is either a path to the file or the raw file contents. By default the file is treated as an Actual export (a `.zip` file containing `db.sqlite` and `metadata.json`); pass `type: 'ynab4'` or `type: 'ynab5'` to import a YNAB export instead. When passing raw contents, you can supply the original file name with `filename` — some import types use it to derive the budget name. With `type: 'ynab5'`, `ccPaymentCategories: true` imports credit cards with [payment categories](../experimental/credit-card-payments.md#importing-from-nynab) (experimental). Returns the id of the imported budget, which is now the loaded budget.
 
 #### `exportBudget`
 

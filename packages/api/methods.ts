@@ -63,15 +63,26 @@ export async function importBudget(
   {
     type = 'actual',
     filename,
-  }: { type?: ImportableBudgetType; filename?: string } = {},
+    ccPaymentCategories,
+  }: {
+    type?: ImportableBudgetType;
+    filename?: string;
+    /** nYNAB only: import credit cards with payment categories (experimental) */
+    ccPaymentCategories?: boolean;
+  } = {},
 ): Promise<{ id: string }> {
   const result =
     typeof input === 'string'
-      ? await send('import-budget', { filepath: input, type })
+      ? await send('import-budget', {
+          filepath: input,
+          type,
+          ccPaymentCategories,
+        })
       : await send('import-budget', {
           buffer: toArrayBuffer(input),
           filename,
           type,
+          ccPaymentCategories,
         });
 
   if (result.error) {

@@ -20,6 +20,10 @@ If the Credit Card Payments group already holds a category named after the card 
 
 The Credit Card Payments group is created at the top of the budget.
 
+## Importing from nYNAB
+
+When importing an nYNAB budget, tick **Credit card payment categories (experimental)** in the import dialog (or pass `ccPaymentCategories: true` to `importBudget` in the API). The feature is turned on for the imported budget, and every on-budget credit card or line of credit becomes a card with its payment category, keeping the budgeted amounts nYNAB had on it. Closed cards become cards too; their payment categories are hidden. Off-budget cards stay ordinary off-budget accounts. Card starting balances are left uncategorised. Without the option the import works as before.
+
 ## How spending moves
 
 When you categorise a card purchase, the part of it the category can cover moves into the card's payment category:
