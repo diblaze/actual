@@ -12,6 +12,7 @@ import { View } from '@actual-app/components/view';
 import { importBudget } from '#budgetfiles/budgetfilesSlice';
 import { Link } from '#components/common/Link';
 import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Checkbox } from '#components/forms';
 import { ImportProgress } from '#components/modals/manager/ImportProgress';
 import { useNavigate } from '#hooks/useNavigate';
 import { useDispatch } from '#redux';
@@ -40,6 +41,7 @@ export function ImportYNAB5Modal() {
   }
 
   const [importing, setImporting] = useState(false);
+  const [ccPaymentCategories, setCcPaymentCategories] = useState(false);
 
   async function onImport() {
     const res = await window.Actual.openFileDialog({
@@ -50,7 +52,13 @@ export function ImportYNAB5Modal() {
       setImporting(true);
       setError(null);
       try {
-        await dispatch(importBudget({ filepath: res[0], type: 'ynab5' }));
+        await dispatch(
+          importBudget({
+            filepath: res[0],
+            type: 'ynab5',
+            ccPaymentCategories,
+          }),
+        );
         void navigate('/budget');
       } catch (err) {
         setError(err.message);
@@ -108,6 +116,30 @@ export function ImportYNAB5Modal() {
                   fix up any problems.
                 </Trans>
               </Paragraph>
+              {!importing && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 10,
+                  }}
+                >
+                  <Checkbox
+                    id="cc-payment-categories"
+                    name="cc-payment-categories"
+                    checked={ccPaymentCategories}
+                    onChange={() =>
+                      setCcPaymentCategories(!ccPaymentCategories)
+                    }
+                  />
+                  <label
+                    htmlFor="cc-payment-categories"
+                    style={{ userSelect: 'none' }}
+                  >
+                    <Trans>Credit card payment categories (experimental)</Trans>
+                  </label>
+                </View>
+              )}
               {!importing && (
                 <View>
                   <ButtonWithLoading
