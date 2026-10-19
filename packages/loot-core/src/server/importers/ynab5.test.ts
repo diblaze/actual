@@ -239,6 +239,122 @@ describe('importTransactions', () => {
   });
 });
 
+describe('inflow on a card', () => {
+  async function importInflow({
+    type = 'creditCard' as Account['type'],
+    options = { ccPaymentCategories: true } as {
+      ccPaymentCategories?: boolean;
+    },
+    amount = -5000000,
+    transfer = false,
+    split = false,
+    categoryId = 'ynab-rta',
+  } = {}) {
+    vi.mocked(send).mockImplementation(async (name: string) => {
+      if (name === 'api/payees-get') {
+        return [{ id: 'p2', transfer_acct: 'actual-account-2' }];
+      }
+      if (name === 'api/categories-get') {
+        return [
+          { id: 'actual-income', name: 'Income' },
+          { id: 'actual-start', name: 'Starting Balances' },
+        ];
+      }
+      if (name === 'api/transactions-add') return null;
+      throw new Error(`Unexpected send call: ${name}`);
+    });
+    const entityIdMap = new Map([
+      ['ynab-account-1', 'actual-account-1'],
+      ['ynab-account-2', 'actual-account-2'],
+      ['ynab-rta', 'actual-income'],
+      ['ynab-salary', 'actual-income'],
+    ]);
+    await importTransactions(
+      {
+        categories: [
+          { id: 'ynab-rta', name: 'Inflow: Ready to Assign' },
+          { id: 'ynab-salary', name: 'Salary' },
+        ],
+        accounts: [
+          makeAccount({ id: 'ynab-account-1', type }),
+          makeAccount({ id: 'ynab-account-2', on_budget: false }),
+        ],
+        // A starting balance payee that this transaction does not use
+        payees: [makePayee({ id: 'ynab-start', name: 'Starting Balance' })],
+        transactions: [
+          makeTransaction({
+            id: 'txn-rta',
+            payee_id: 'ynab-adjustment',
+            amount,
+            // A split parent has no category of its own
+            category_id: split ? undefined : categoryId,
+            ...(transfer && {
+              transfer_account_id: 'ynab-account-2',
+              transfer_transaction_id: 'txn-other',
+            }),
+          }),
+        ],
+        subtransactions: split
+          ? [
+              {
+                id: 'sub-rta',
+                transaction_id: 'txn-rta',
+                amount,
+                category_id: 'ynab-rta',
+                deleted: false,
+              },
+            ]
+          : [],
+      } as unknown as Parameters<typeof importTransactions>[0],
+      entityIdMap,
+      new Set(),
+      undefined,
+      options,
+    );
+    const call = vi
+      .mocked(send)
+      .mock.calls.find(([name]) => name === 'api/transactions-add');
+    return call?.[1].transactions[0];
+  }
+
+  it('leaves a negative inflow adjustment on a card uncategorised', async () => {
+    expect((await importInflow()).category).toBeNull();
+  });
+
+  it('leaves a positive inflow adjustment on a card uncategorised', async () => {
+    expect((await importInflow({ amount: 5000000 })).category).toBeNull();
+  });
+
+  it('leaves an inflow split line on a card uncategorised', async () => {
+    const trx = await importInflow({ split: true });
+    expect(trx.subtransactions[0].category).toBeNull();
+  });
+
+  it('keeps inflow on a checking account as income', async () => {
+    expect((await importInflow({ type: 'checking' })).category).toBe(
+      'actual-income',
+    );
+  });
+
+  it('keeps inflow on a card as income without the option', async () => {
+    expect((await importInflow({ options: {} })).category).toBe(
+      'actual-income',
+    );
+  });
+
+  it('keeps a legacy Income group category on a card as income', async () => {
+    expect((await importInflow({ categoryId: 'ynab-salary' })).category).toBe(
+      'actual-income',
+    );
+  });
+
+  it('keeps a categorised transfer into a card as income', async () => {
+    expect((await importInflow({ transfer: true })).category).toBe(
+      'actual-income',
+    );
+  });
+});
+
 function makeAccount(overrides: Partial<Account> = {}): Account {
   return {
     id: 'ynab-account-1',

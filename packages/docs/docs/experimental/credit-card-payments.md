@@ -22,7 +22,7 @@ The Credit Card Payments group is created at the top of the budget.
 
 ## Importing from nYNAB
 
-When importing an nYNAB budget, tick **Credit card payment categories (experimental)** in the import dialog (or pass `ccPaymentCategories: true` to `importBudget` in the API). The feature is turned on for the imported budget, and every on-budget credit card or line of credit becomes a card with its payment category, keeping the budgeted amounts nYNAB had on it. Closed cards become cards too; their payment categories are hidden. Off-budget cards stay ordinary off-budget accounts. Card starting balances are left uncategorised. Without the option the import works as before.
+When importing an nYNAB budget, tick **Credit card payment categories (experimental)** in the import dialog (or pass `ccPaymentCategories: true` to `importBudget` in the API). The feature is turned on for the imported budget, and every on-budget credit card or line of credit becomes a card with its payment category, keeping the budgeted amounts nYNAB had on it. Closed cards become cards too; their payment categories are hidden. Off-budget cards stay ordinary off-budget accounts. Card starting balances and non-transfer card transactions nYNAB had on Inflow: Ready to Assign (reconciliation adjustments, interest, cashback) are left uncategorised, as nYNAB's To Be Budgeted never counted them; they show under Uncategorized. Without the option the import works as before.
 
 ## How spending moves
 
