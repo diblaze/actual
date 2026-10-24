@@ -12,6 +12,7 @@ import { Permissions } from '#auth/types';
 import { Link } from '#components/common/Link';
 import { Checkbox } from '#components/forms';
 import { useLoginMethod, useMultiuserEnabled } from '#components/ServerContext';
+import { useCreditCardsEnabled } from '#hooks/useCreditCardsEnabled';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useServerPref } from '#hooks/useServerPref';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -156,6 +157,7 @@ export function ExperimentalFeatures() {
   const goalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const goalTemplatesUIEnabled = useFeatureFlag('goalTemplatesUIEnabled');
   const showGoalTemplatesUI = goalTemplatesEnabled || goalTemplatesUIEnabled;
+  const creditCardsEnabled = useCreditCardsEnabled();
 
   const showServerPrefs =
     localStorage.getItem('devEnableServerPrefs') === 'true';
@@ -190,6 +192,27 @@ export function ExperimentalFeatures() {
             >
               <Trans>Credit card payment categories (envelope budget)</Trans>
             </FeatureToggle>
+            {creditCardsEnabled && (
+              <View style={{ paddingLeft: 22 }}>
+                <FeatureToggle
+                  flag="ccCarryCardDebt"
+                  note={
+                    <Trans>
+                      Card spending a category can't cover shows as a warning
+                      this month, then in red in the same category until you
+                      budget for it. Money budgeted to that category pays the
+                      card first. Turning this on recalculates every month, so
+                      uncovered card spending from earlier months comes back
+                      too.
+                    </Trans>
+                  }
+                >
+                  <Trans>
+                    Subfeature: Carry uncovered card spending into next month
+                  </Trans>
+                </FeatureToggle>
+              </View>
+            )}
             <FeatureToggle
               flag="actionTemplating"
               feedbackLink="https://github.com/actualbudget/actual/issues/3606"
