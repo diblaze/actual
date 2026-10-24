@@ -124,6 +124,7 @@ export function BalanceWithCarryover({
   const budgetedValue = useSheetValue(budgeted);
   const longGoalValue = useSheetValue(longGoal);
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
+  const isCarryingCardDebt = useFeatureFlag('ccCarryCardDebt');
   const getBalanceAmountStyle = useCallback(
     (balanceValue: number) =>
       // Overspent only on a card: the debt stays on the card instead of
@@ -278,11 +279,19 @@ export function BalanceWithCarryover({
               >
                 {creditDebt > 0 && (
                   <Text>
-                    <Trans>
-                      {{ amount: format(creditDebt, 'financial') }} of card
-                      spending was not covered. It stays on the card as debt and
-                      is not taken from next month's To Budget.
-                    </Trans>
+                    {isCarryingCardDebt ? (
+                      <Trans>
+                        {{ amount: format(creditDebt, 'financial') }} of card
+                        spending was not covered. It carries into this category
+                        next month and is not taken from next month's To Budget.
+                      </Trans>
+                    ) : (
+                      <Trans>
+                        {{ amount: format(creditDebt, 'financial') }} of card
+                        spending was not covered. It stays on the card as debt
+                        and is not taken from next month's To Budget.
+                      </Trans>
+                    )}
                   </Text>
                 )}
                 {cardToPay > 0 && (

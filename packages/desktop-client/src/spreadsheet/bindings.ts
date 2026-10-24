@@ -192,6 +192,7 @@ export const envelopeBudget = {
   catBalance: envelopeParametrizedField('leftover'),
   catCashBalance: envelopeParametrizedField('cash-leftover'),
   catCardToPay: envelopeParametrizedField('cc-to-pay'),
+  catCardCarried: envelopeParametrizedField('cc-carried'),
   catCarryover: envelopeParametrizedField('carryover'),
   catGoal: envelopeParametrizedField('goal'),
   catLongGoal: envelopeParametrizedField('long-goal'),
