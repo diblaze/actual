@@ -718,6 +718,8 @@ function useStartingBalanceInfo(accountId: string | undefined) {
 
     const query = transactions(accountId)
       .filter({ starting_balance_flag: true })
+      // The first one: imported card adjustments are flagged too
+      .orderBy({ date: 'asc' })
       .select(['date', 'amount'])
       .limit(1);
 
