@@ -27,6 +27,7 @@ import {
   getSheetValue,
   isTrackingBudget,
 } from './actions';
+import * as creditCard from './credit-card';
 import { runSchedule } from './schedule-template';
 import { getActiveSchedules } from './statements';
 
@@ -71,6 +72,17 @@ export class CategoryTemplateContext {
     );
 
     if (
+      fromLastMonth < 0 &&
+      !carryover &&
+      creditCard.isCarryingDebt(category)
+    ) {
+      // Carried card debt stays in the category; only cash overspending is
+      // dropped. cash-leftover = leftover + card debt, so this is -card debt
+      fromLastMonth -= await getSheetValue(
+        lastMonthSheet,
+        `cash-leftover-${category.id}`,
+      );
+    } else if (
       (fromLastMonth < 0 && !carryover) || // overspend no carryover
       category.is_income || // tracking budget income categories
       (isTrackingBudget() && !carryover) // tracking budget regular categories

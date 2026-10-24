@@ -13,6 +13,7 @@ import { set3MonthAvg, setBudget, setCategoryCarryover } from './actions';
 import { app as budgetApp } from './app';
 import * as budget from './base';
 import { whenRebuilt } from './credit-card';
+import { applySingleCategoryTemplate } from './goal-template';
 
 // Inside the mocked current date, so budget rebuilds cover these months
 const JAN = '2017-01';
@@ -34,6 +35,13 @@ async function settle() {
 async function setFlag(enabled: boolean) {
   await db.update('preferences', {
     id: 'flags.ccPaymentCategories',
+    value: String(enabled),
+  });
+}
+
+async function setCarry(enabled: boolean) {
+  await db.update('preferences', {
+    id: 'flags.ccCarryCardDebt',
     value: String(enabled),
   });
 }
@@ -1159,6 +1167,181 @@ describe('credit card payment categories', () => {
         [id],
       );
       expect(payment).toBeNull();
+    });
+  });
+
+  describe('carrying card debt', () => {
+    async function carrying(options?: Parameters<typeof setup>[0]) {
+      await setup(options);
+      await setCarry(true);
+      await settle();
+    }
+
+    it('carries uncovered card debt into next month', async () => {
+      await carrying();
+      await overspendOnCard();
+
+      expect(value(FEB, 'leftover-food')).toBe(-20000);
+      expect(value(FEB, 'cc-debt-food-visa')).toBe(20000);
+      expect(value(FEB, 'cash-leftover-food')).toBe(0);
+      expect(value(FEB, 'cc-carried-food')).toBe(20000);
+      expect(value(FEB, 'leftover-visa')).toBe(30000);
+      expect(value(FEB, 'to-budget')).toBe(70000);
+    });
+
+    it('takes only cash overspending from To Budget next to carried card debt', async () => {
+      await carrying();
+      await setFoodBudget(JAN, 30000);
+      await tx('checking', '2017-01-05', -35000, 'food');
+      await tx('card', '2017-01-10', -50000, 'food');
+      await settle();
+
+      expect(value(FEB, 'to-budget')).toBe(65000);
+      expect(value(FEB, 'leftover-food')).toBe(-50000);
+      expect(value(FEB, 'cc-debt-food-visa')).toBe(50000);
+    });
+
+    it('carries card debt with rollover on', async () => {
+      await carrying();
+      await overspendOnCard();
+      await rollover('food');
+
+      expect(value(FEB, 'leftover-food')).toBe(-20000);
+      expect(value(FEB, 'cc-debt-food-visa')).toBe(20000);
+      expect(value(FEB, 'cc-carried-food')).toBe(20000);
+      expect(value(FEB, 'to-budget')).toBe(70000);
+    });
+
+    it('lets a refund next month cancel carried card debt', async () => {
+      await carrying();
+      await overspendOnCard();
+      await tx('card', '2017-02-05', 5000, 'food');
+      await settle();
+
+      expect(value(FEB, 'leftover-food')).toBe(-15000);
+      expect(value(FEB, 'cc-debt-food-visa')).toBe(15000);
+      expect(value(FEB, 'cc-carried-food')).toBe(15000);
+      expect(value(FEB, 'leftover-visa')).toBe(30000);
+      expect(value(FEB, 'to-budget')).toBe(70000);
+    });
+
+    it('does not ask the payment category for debt a category carries', async () => {
+      await carrying();
+      await overspendOnCard();
+
+      expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+      expect(value(FEB, 'cc-to-pay-visa')).toBe(0);
+
+      await setFoodBudget(FEB, 20000);
+      expect(value(FEB, 'leftover-visa')).toBe(50000);
+      expect(value(FEB, 'cc-to-pay-visa')).toBe(0);
+    });
+
+    it('leaves debt of a category added later to that category', async () => {
+      await carrying();
+      const id = await runHandler(budgetApp.handlers['category-create'], {
+        name: 'Fuel',
+        groupId: 'group1',
+      });
+      await settle();
+      await tx('card', '2017-01-10', -10000, id);
+      await settle();
+
+      expect(value(JAN, `cc-debt-${id}-visa`)).toBe(10000);
+      expect(value(JAN, 'cc-to-pay-visa')).toBe(0);
+    });
+
+    it('lets budget templates see carried card debt', async () => {
+      await carrying();
+      await overspendOnCard();
+      db.runQuery('INSERT INTO notes (id, note) VALUES (?, ?)', [
+        'food',
+        '#template up to 300',
+      ]);
+      await applySingleCategoryTemplate({ month: FEB, category: 'food' });
+      await settle();
+
+      expect(value(FEB, 'budget-food')).toBe(50000);
+      expect(value(FEB, 'leftover-food')).toBe(30000);
+    });
+
+    it('pays carried card debt first when budgeted', async () => {
+      await carrying();
+      await overspendOnCard();
+      await setFoodBudget(FEB, 30000);
+
+      expect(value(FEB, 'cc-moved-food-visa')).toBe(20000);
+      expect(value(FEB, 'leftover-visa')).toBe(50000);
+      expect(value(FEB, 'leftover-food')).toBe(10000);
+      expect(value(FEB, 'cc-debt-food-visa')).toBe(0);
+      expect(value(FEB, 'cc-carried-food')).toBe(0);
+      expect(value(FEB, 'to-budget')).toBe(40000);
+    });
+
+    it('pays carried debt in payment-category order', async () => {
+      await carrying({ amex: true });
+      await tx('card2', '2017-01-05', -20000, 'food');
+      await tx('card', '2017-01-10', -30000, 'food');
+      await settle();
+      await setFoodBudget(FEB, 35000);
+
+      expect(value(FEB, 'cc-moved-food-visa')).toBe(30000);
+      expect(value(FEB, 'cc-moved-food-amex')).toBe(5000);
+      expect(value(FEB, 'cc-debt-food-amex')).toBe(15000);
+    });
+
+    it('keeps To Budget and balances equal to the cash', async () => {
+      await carrying();
+      await overspendOnCard();
+
+      const check = (month: string) => {
+        expect(
+          value(month, 'to-budget') +
+            value(month, 'leftover-food') +
+            value(month, 'cc-debt-food-visa') +
+            value(month, 'leftover-dining') +
+            value(month, 'leftover-visa'),
+        ).toBe(100000);
+        expect(
+          value(month, 'leftover-visa') + value(month, 'cc-debt-food-visa'),
+        ).toBe(50000);
+      };
+      check(JAN);
+      check(FEB);
+      await setFoodBudget(FEB, 20000);
+      check(FEB);
+    });
+
+    it("reports this month's card overspending apart from carried debt", async () => {
+      await carrying();
+      await overspendOnCard();
+
+      expect(
+        value(JAN, 'cash-leftover-food') - value(JAN, 'leftover-food'),
+      ).toBe(20000);
+      expect(value(JAN, 'cc-carried-food')).toBe(0);
+    });
+
+    it('recalculates every month when the setting is flipped', async () => {
+      await setup();
+      await overspendOnCard();
+
+      await setCarry(true);
+      await settle();
+      expect(value(FEB, 'leftover-food')).toBe(-20000);
+
+      await setCarry(false);
+      await settle();
+      expect(value(FEB, 'leftover-food')).toBe(0);
+    });
+
+    it('ignores the setting with the feature off', async () => {
+      await carrying({ flag: false });
+      await overspendOnCard();
+
+      expect(value(FEB, 'leftover-food')).toBe(0);
+      expect(value(FEB, 'to-budget')).toBe(50000);
+      expect(sheet.get().hasCell('budget201701!cc-debt-food-visa')).toBe(false);
     });
   });
 });
