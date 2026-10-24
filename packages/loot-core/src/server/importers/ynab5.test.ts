@@ -198,6 +198,7 @@ describe('importTransactions', () => {
       ]);
       await importTransactions(
         {
+          categories: [{ id: 'ynab-rta', name: 'Inflow: Ready to Assign' }],
           accounts: [makeAccount({ id: 'ynab-account-1', type })],
           payees: [startingPayee],
           transactions: [
@@ -218,23 +219,36 @@ describe('importTransactions', () => {
       const call = vi
         .mocked(send)
         .mock.calls.find(([name]) => name === 'api/transactions-add');
-      return call?.[1].transactions[0].category;
+      return call?.[1].transactions[0];
     }
 
     it("leaves a card's starting balance uncategorised when the option is set", async () => {
       expect(
-        await importStart('creditCard', { ccPaymentCategories: true }),
+        (await importStart('creditCard', { ccPaymentCategories: true }))
+          .category,
       ).toBeNull();
     });
 
     it("files a checking account's starting balance under Starting Balances", async () => {
-      expect(await importStart('checking', { ccPaymentCategories: true })).toBe(
-        'actual-start',
-      );
+      expect(
+        (await importStart('checking', { ccPaymentCategories: true })).category,
+      ).toBe('actual-start');
     });
 
     it("files a card's starting balance under Starting Balances without the option", async () => {
-      expect(await importStart('creditCard')).toBe('actual-start');
+      expect((await importStart('creditCard')).category).toBe('actual-start');
+    });
+
+    it("marks a card's starting balance as a starting balance", async () => {
+      const trx = await importStart('creditCard', {
+        ccPaymentCategories: true,
+      });
+      expect(trx.starting_balance_flag).toBe(true);
+    });
+
+    it("leaves a card's starting balance unmarked without the option", async () => {
+      const trx = await importStart('creditCard', {});
+      expect(trx.starting_balance_flag).toBeFalsy();
     });
   });
 });
@@ -248,7 +262,7 @@ describe('inflow on a card', () => {
     amount = -5000000,
     transfer = false,
     split = false,
-    categoryId = 'ynab-rta',
+    categoryId = 'ynab-rta' as string | null,
   } = {}) {
     vi.mocked(send).mockImplementation(async (name: string) => {
       if (name === 'api/payees-get') {
@@ -321,6 +335,22 @@ describe('inflow on a card', () => {
     expect((await importInflow()).category).toBeNull();
   });
 
+  it('marks an inflow adjustment on a card as a starting balance', async () => {
+    expect((await importInflow()).starting_balance_flag).toBe(true);
+  });
+
+  it('leaves an uncategorised card purchase unmarked', async () => {
+    const trx = await importInflow({ categoryId: null });
+    expect(trx.category).toBeNull();
+    expect(trx.starting_balance_flag).toBeFalsy();
+  });
+
+  it('leaves inflow on a checking account unmarked', async () => {
+    expect(
+      (await importInflow({ type: 'checking' })).starting_balance_flag,
+    ).toBeFalsy();
+  });
+
   it('leaves a positive inflow adjustment on a card uncategorised', async () => {
     expect((await importInflow({ amount: 5000000 })).category).toBeNull();
   });
@@ -328,6 +358,7 @@ describe('inflow on a card', () => {
   it('leaves an inflow split line on a card uncategorised', async () => {
     const trx = await importInflow({ split: true });
     expect(trx.subtransactions[0].category).toBeNull();
+    expect(trx.starting_balance_flag).toBeFalsy();
   });
 
   it('keeps inflow on a checking account as income', async () => {
@@ -337,9 +368,9 @@ describe('inflow on a card', () => {
   });
 
   it('keeps inflow on a card as income without the option', async () => {
-    expect((await importInflow({ options: {} })).category).toBe(
-      'actual-income',
-    );
+    const trx = await importInflow({ options: {} });
+    expect(trx.category).toBe('actual-income');
+    expect(trx.starting_balance_flag).toBeFalsy();
   });
 
   it('keeps a legacy Income group category on a card as income', async () => {
@@ -349,9 +380,9 @@ describe('inflow on a card', () => {
   });
 
   it('keeps a categorised transfer into a card as income', async () => {
-    expect((await importInflow({ transfer: true })).category).toBe(
-      'actual-income',
-    );
+    const trx = await importInflow({ transfer: true });
+    expect(trx.category).toBe('actual-income');
+    expect(trx.starting_balance_flag).toBeFalsy();
   });
 });
 

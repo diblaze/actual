@@ -55,12 +55,22 @@ export function createCategory(cat, sheetName, prevSheetName) {
         `${prevSheetName}!carryover-${cat.id}`,
         `${prevSheetName}!leftover-${cat.id}`,
         `${prevSheetName}!leftover-pos-${cat.id}`,
+        ...creditCard.carriedDebtDeps(cat, prevSheetName),
       ],
-      run: (budgeted, spent, prevCarryover, prevLeftover, prevLeftoverPos) => {
+      run: (
+        budgeted,
+        spent,
+        prevCarryover,
+        prevLeftover,
+        prevLeftoverPos,
+        ...prevDebts
+      ) => {
         return safeNumber(
           number(budgeted) +
             number(spent) +
-            (prevCarryover ? number(prevLeftover) : number(prevLeftoverPos)),
+            (prevCarryover
+              ? number(prevLeftover)
+              : number(prevLeftoverPos) - sumAmounts(...prevDebts)),
         );
       },
     });
