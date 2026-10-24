@@ -848,16 +848,15 @@ export async function importTransactions(
         data.accounts?.find(a => a.id === accountId),
         options,
       );
+      const isCardInflow = (trx: {
+        transfer_account_id?: string | null;
+        category_id?: string | null;
+      }) =>
+        isCard && !trx.transfer_account_id && inflowIds.has(trx.category_id);
       const cardCategory = (
-        trx: {
-          transfer_account_id?: string | null;
-          category_id?: string | null;
-        },
+        trx: Parameters<typeof isCardInflow>[0],
         category: string | null,
-      ) =>
-        isCard && !trx.transfer_account_id && inflowIds.has(trx.category_id)
-          ? null
-          : category;
+      ) => (isCardInflow(trx) ? null : category);
 
       const toImport = transactions
         .map(transaction => {
@@ -879,6 +878,9 @@ export async function importTransactions(
             ),
             cleared: ['cleared', 'reconciled'].includes(transaction.cleared),
             reconciled: transaction.cleared === 'reconciled',
+            // Kept out of the uncategorized to-dos, like a card's starting
+            // balance created in Actual
+            ...(isCardInflow(transaction) && { starting_balance_flag: true }),
             notes: buildTransactionNotes(transaction, flagNameConflicts),
             imported_id: transaction.import_id || null,
             transfer_id:
