@@ -1360,4 +1360,30 @@ describe('credit card payment categories', () => {
       expect(sheet.get().hasCell('budget201701!cc-debt-food-visa')).toBe(false);
     });
   });
+
+  describe('is-credit-card-account', () => {
+    const isCard = (id: string) =>
+      runHandler(budgetApp.handlers['is-credit-card-account'], { id });
+
+    it('counts a live on-budget card as a card', async () => {
+      await setup();
+
+      expect(await isCard('card')).toBe(true);
+      expect(await isCard('checking')).toBe(false);
+    });
+
+    it('does not count a card with the feature off', async () => {
+      await setup({ flag: false });
+
+      expect(await isCard('card')).toBe(false);
+    });
+
+    it('does not count an off-budget card', async () => {
+      await setup();
+      await db.update('accounts', { id: 'card', offbudget: 1 });
+      await settle();
+
+      expect(await isCard('card')).toBe(false);
+    });
+  });
 });

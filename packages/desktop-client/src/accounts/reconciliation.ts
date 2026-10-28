@@ -111,14 +111,33 @@ export async function createReconciliationTransaction(
 
   onRealized?.(reconciliationTransactions);
 
+  const isCard = await send('is-credit-card-account', { id: accountId });
+  // A card adjustment changes the card's debt only: uncategorised and marked
+  // like a starting balance, unless a rule categorised, split or transferred it
   const ruledTransactions = await Promise.all(
-    reconciliationTransactions.map(transaction =>
-      send('rules-run', { transaction }),
-    ),
+    reconciliationTransactions.map(async transaction => {
+      const ruled = await send('rules-run', { transaction });
+      const plain =
+        isCard &&
+        ruled.category == null &&
+        !ruled.subtransactions?.length &&
+        !(await isTransferPayee(ruled.payee));
+      return plain ? { ...ruled, starting_balance_flag: true } : ruled;
+    }),
   );
 
   await send('transactions-batch-update', {
     added: ruledTransactions.filter(trans => !trans.tombstone),
     deleted: ruledTransactions.filter(trans => trans.tombstone),
   });
+}
+
+async function isTransferPayee(payee: TransactionEntity['payee']) {
+  if (!payee) {
+    return false;
+  }
+  const { data } = await aqlQuery(
+    q('payees').filter({ id: payee }).select('transfer_acct'),
+  );
+  return data[0]?.transfer_acct != null;
 }
