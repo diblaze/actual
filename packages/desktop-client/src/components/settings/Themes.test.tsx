@@ -108,14 +108,7 @@ describe('ThemeSettings', () => {
       mockCustomCssOverride = ':root { --color-accent: #ff00aa; }';
       render(<ThemeSettings />);
 
-      // The Select trigger is the only "Light" button before the dropdown
-      // is opened. Click it to reveal the menu.
-      const select = screen.getByRole('button', { name: 'Light' });
-      await user.click(select);
-      // The Select component renders menu items as buttons (not options).
-      // After opening, "Dark" appears as a button in the popover.
-      const darkOption = await screen.findByRole('button', { name: 'Dark' });
-      await user.click(darkOption);
+      await user.click(screen.getByRole('radio', { name: 'Dark' }));
 
       expect(mockSetOverride).not.toHaveBeenCalled();
       expect(mockSwitchTheme).toHaveBeenCalledWith('dark');

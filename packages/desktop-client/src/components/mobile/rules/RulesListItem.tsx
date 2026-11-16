@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import type { GridListItemProps } from 'react-aria-components';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import type { RuleEntity } from '@actual-app/core/types/models';
@@ -14,6 +15,15 @@ import { ActionableGridListItem } from '#components/mobile/ActionableGridListIte
 import { ActionExpression } from '#components/rules/ActionExpression';
 import { ConditionExpression } from '#components/rules/ConditionExpression';
 import { groupActionsBySplitIndex } from '#util/rule';
+
+// Flatten the expression pills into running text of the sentence
+const inlineStyle = {
+  display: 'inline',
+  backgroundColor: 'transparent',
+  padding: 0,
+  whiteSpace: 'normal',
+  color: 'inherit',
+} as const;
 
 type RulesListItemProps = {
   onDelete: () => void;
@@ -99,106 +109,72 @@ export function RulesListItem({
           </View>
         </View>
 
-        {/* Column 2: IF and THEN blocks */}
-        <View
-          style={{
-            flex: 1,
-            flexDirection: 'column',
-            gap: 4,
-          }}
-        >
-          {/* IF conditions block */}
-          <SpaceBetween gap={6}>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: theme.pageTextLight,
-                marginRight: 4,
-              }}
-            >
-              {t('IF')}
-            </span>
-
+        {/* Column 2: the rule as a sentence */}
+        <View style={{ flex: 1, flexDirection: 'column', gap: 4 }}>
+          <Text style={{ fontSize: 15, lineHeight: 1.6 }}>
+            <Trans>If</Trans>{' '}
             {rule.conditions.map((condition, index) => (
-              <View key={index} style={{ marginRight: 4, marginBottom: 2 }}>
+              <Fragment key={index}>
+                {index > 0 &&
+                  (rule.conditionsOp === 'or' ? t(' or ') : t(' and '))}
                 <ConditionExpression
                   field={condition.field}
                   op={condition.op}
                   value={condition.value}
                   options={condition.options}
                   inline
+                  style={inlineStyle}
                 />
-              </View>
+              </Fragment>
             ))}
-          </SpaceBetween>
+            {hasSplits ? ':' : ', '}
+            {!hasSplits &&
+              rule.actions.map((action, index) => (
+                <Fragment key={index}>
+                  {index > 0 && t(' and ')}
+                  <ActionExpression {...action} style={inlineStyle} />
+                </Fragment>
+              ))}
+          </Text>
 
-          {/* THEN actions block */}
-          <View
-            style={{
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              gap: 4,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: theme.pageTextLight,
-                marginBottom: 2,
-              }}
-            >
-              {t('THEN')}
-            </span>
-
-            {hasSplits
-              ? actionSplits.map((split, i) => (
+          {hasSplits &&
+            actionSplits.map((split, i) => (
+              <View
+                key={i}
+                style={{
+                  width: '100%',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  marginTop: i > 0 ? 4 : 0,
+                  padding: '6px',
+                  borderColor: theme.tableBorder,
+                  borderWidth: '1px',
+                  borderRadius: '5px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: theme.pageTextLight,
+                    marginBottom: 4,
+                  }}
+                >
+                  {i ? t('Split {{num}}', { num: i }) : t('Apply to all')}
+                </span>
+                {split.actions.map((action, j) => (
                   <View
-                    key={i}
+                    key={j}
                     style={{
-                      width: '100%',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      marginTop: i > 0 ? 4 : 0,
-                      padding: '6px',
-                      borderColor: theme.tableBorder,
-                      borderWidth: '1px',
-                      borderRadius: '5px',
+                      marginBottom: j !== split.actions.length - 1 ? 2 : 0,
+                      maxWidth: '100%',
                     }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 500,
-                        color: theme.pageTextLight,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {i ? t('Split {{num}}', { num: i }) : t('Apply to all')}
-                    </span>
-                    {split.actions.map((action, j) => (
-                      <View
-                        key={j}
-                        style={{
-                          marginBottom: j !== split.actions.length - 1 ? 2 : 0,
-                          maxWidth: '100%',
-                        }}
-                      >
-                        <ActionExpression {...action} />
-                      </View>
-                    ))}
-                  </View>
-                ))
-              : rule.actions.map((action, index) => (
-                  <View
-                    key={index}
-                    style={{ marginBottom: 2, maxWidth: '100%' }}
                   >
                     <ActionExpression {...action} />
                   </View>
                 ))}
-          </View>
+              </View>
+            ))}
         </View>
       </SpaceBetween>
     </ActionableGridListItem>

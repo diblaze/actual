@@ -3,10 +3,11 @@ import type { ReactNode } from 'react';
 import { Trans } from 'react-i18next';
 import { useLocation } from 'react-router';
 
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import type { CSSProperties } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
-import { tokens } from '@actual-app/components/tokens';
+import { radius, tokens } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 
@@ -19,6 +20,7 @@ type SettingProps = {
 };
 
 export const Setting = ({ primaryAction, style, children }: SettingProps) => {
+  const { isNarrowWidth } = useResponsive();
   return (
     <View
       className={css([
@@ -30,6 +32,13 @@ export const Setting = ({ primaryAction, style, children }: SettingProps) => {
           borderRadius: 4,
           border: '1px solid ' + theme.pillBorderDark,
           width: '100%',
+        },
+        // Phone settings sit in the same cards as the other phone lists
+        isNarrowWidth && {
+          backgroundColor: theme.cardBackground,
+          borderRadius: radius.card,
+          border: 'none',
+          boxShadow: theme.cardElevation,
         },
         style,
       ])}

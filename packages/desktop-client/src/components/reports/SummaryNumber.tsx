@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
@@ -12,6 +13,8 @@ import { ReportCardValueSkeleton } from './ReportCardValueSkeleton';
 
 const FONT_SIZE_SCALE_FACTOR = 1.6;
 const CONTAINER_MARGIN = 8;
+// Phone summary numbers keep one size regardless of digit count.
+const NARROW_FONT_SIZE = '28px';
 
 type SummaryNumberProps = {
   value: number;
@@ -28,6 +31,7 @@ export function SummaryNumber({
 }: SummaryNumberProps) {
   const { t } = useTranslation();
   const format = useFormat();
+  const { isNarrowWidth } = useResponsive();
   const isNumericValue = Number.isFinite(value);
 
   let displayAmount =
@@ -37,7 +41,9 @@ export function SummaryNumber({
 
   displayAmount += suffix;
 
-  const fontSize = `min(${(FONT_SIZE_SCALE_FACTOR * 100) / displayAmount.length}cqi, calc(100cqb - ${CONTAINER_MARGIN * 2}px))`;
+  const fontSize = isNarrowWidth
+    ? NARROW_FONT_SIZE
+    : `min(${(FONT_SIZE_SCALE_FACTOR * 100) / displayAmount.length}cqi, calc(100cqb - ${CONTAINER_MARGIN * 2}px))`;
 
   return (
     <>

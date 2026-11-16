@@ -58,7 +58,6 @@ test.describe('Settings', () => {
         { timeout: 1000 },
       );
     }).toPass({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Light', exact: true }).click();
     await page
       .getByRole('button', { name: 'Custom theme', exact: true })
       .click();
@@ -71,12 +70,8 @@ test.describe('Settings', () => {
     const indicator = page.getByRole('button', {
       name: 'Custom CSS override active — click to edit',
     });
-    let currentTheme = 'Test theme';
-    for (const nextTheme of ['Dark', 'Midnight', 'Light', 'System default']) {
-      await page
-        .getByRole('button', { name: currentTheme, exact: true })
-        .click();
-      await page.getByRole('button', { name: nextTheme, exact: true }).click();
+    for (const nextTheme of ['Dark', 'Midnight', 'Light', 'System']) {
+      await page.getByRole('radio', { name: nextTheme, exact: true }).click();
       await expect(indicator).toBeVisible();
       await expect
         .poll(() =>
@@ -87,7 +82,6 @@ test.describe('Settings', () => {
           ),
         )
         .toBe('#abcdef');
-      currentTheme = nextTheme;
     }
 
     for (const width of [1024, 800, 375]) {

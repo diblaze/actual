@@ -34,6 +34,9 @@ export function MobileSchedulesPage() {
   const { showUndoNotification } = useUndo();
   const [filter, setFilter] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [pendingIds, setPendingIds] = useState<
+    ReadonlySet<ScheduleEntity['id']>
+  >(new Set());
   const format = useFormat();
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
 
@@ -116,6 +119,32 @@ export function MobileSchedulesPage() {
     [dispatch, showUndoNotification, t],
   );
 
+  const handleScheduleAction = async (
+    schedule: ScheduleEntity,
+    action: 'schedule/post-transaction' | 'schedule/skip-next-date',
+  ) => {
+    setPendingIds(ids => new Set(ids).add(schedule.id));
+    try {
+      await send(action, { id: schedule.id });
+    } catch (error) {
+      console.error('Failed to update schedule:', error);
+      dispatch(
+        addNotification({
+          notification: {
+            type: 'error',
+            message: t('Failed to update schedule. Please try again.'),
+          },
+        }),
+      );
+    } finally {
+      setPendingIds(ids => {
+        const next = new Set(ids);
+        next.delete(schedule.id);
+        return next;
+      });
+    }
+  };
+
   return (
     <Page
       header={
@@ -160,6 +189,13 @@ export function MobileSchedulesPage() {
         statuses={statuses}
         onSchedulePress={handleSchedulePress}
         onScheduleDelete={handleScheduleDelete}
+        onScheduleMarkPaid={schedule =>
+          handleScheduleAction(schedule, 'schedule/post-transaction')
+        }
+        onScheduleSkip={schedule =>
+          handleScheduleAction(schedule, 'schedule/skip-next-date')
+        }
+        pendingScheduleIds={pendingIds}
         hasCompletedSchedules={hasCompletedSchedules}
         showCompleted={showCompleted}
         onShowCompleted={() => setShowCompleted(true)}

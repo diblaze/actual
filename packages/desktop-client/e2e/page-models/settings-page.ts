@@ -46,16 +46,10 @@ export class SettingsPage {
   }
 
   async setExperimentalFeature(featureName: string, enabled: boolean) {
-    await this.advancedSettingsButton.waitFor({
-      state: 'visible',
-      timeout: 2000,
-    });
+    await this.advancedSettingsButton.waitFor({ state: 'visible' });
     await this.advancedSettingsButton.click();
 
-    await this.experimentalSettingsButton.waitFor({
-      state: 'visible',
-      timeout: 2000,
-    });
+    await this.experimentalSettingsButton.waitFor({ state: 'visible' });
     await this.experimentalSettingsButton.click();
 
     const featureCheckbox = this.page.getByRole('checkbox', {
