@@ -1,4 +1,4 @@
-import React, { memo, useRef, useState } from 'react';
+import React, { createContext, memo, useRef, useState } from 'react';
 import type { ComponentProps, CSSProperties, MouseEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
@@ -12,12 +12,15 @@ import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
-import { css } from '@emotion/css';
+import { css, cx } from '@emotion/css';
 
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
 import { makeAmountGrey } from '#components/budget/util';
+import { ActionBanner } from '#components/mobile/ActionBanner';
+import { BALANCE_PILL_COLORS } from '#components/mobile/budget/BalanceCell';
 import { NotesButton } from '#components/NotesButton';
 import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
 import { Field, Row, SheetCell } from '#components/table';
@@ -36,7 +39,9 @@ import type { CategoryGroupMonthProps, CategoryMonthProps } from '..';
 
 import { BalanceMovementMenu } from './BalanceMovementMenu';
 import { BudgetMenu } from './BudgetMenu';
+import { useEnvelopeBudget } from './EnvelopeBudgetContext';
 import { IncomeMenu } from './IncomeMenu';
+import { useCoverOverspending } from './useEnvelopeBudgetActions';
 
 export function useEnvelopeSheetName<
   FieldName extends SheetFields<'envelope-budget'>,
@@ -63,6 +68,38 @@ const EnvelopeSheetCell = <FieldName extends SheetFields<'envelope-budget'>>(
 ) => {
   return <SheetCell {...props} />;
 };
+
+// On desktop the budget page provides this; a category name then opens the
+// category in the inspector panel
+export const BudgetInspectorContext = createContext<
+  ((categoryId: string) => void) | null
+>(null);
+
+// "N Overspent" beside the month's To budget. Fix lists the overspent
+// categories; picking one opens its cover dialog.
+export function OverspentCard({ month }: { month: string }) {
+  const { t } = useTranslation();
+  const { onBudgetAction } = useEnvelopeBudget();
+  const { count, onOpenCoverList } = useCoverOverspending(
+    month,
+    onBudgetAction,
+  );
+
+  if (count === 0) {
+    return null;
+  }
+
+  return (
+    <ActionBanner
+      tone="negative"
+      count={count}
+      label={t('Overspent')}
+      aria-label={t('{{count}} Overspent', { count })}
+      actionLabel={t('Fix')}
+      onAction={onOpenCoverList}
+    />
+  );
+}
 
 const headerLabelStyle: CSSProperties = {
   flex: 1,
@@ -318,7 +355,9 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
               />
             </View>
             <View
-              className={`hover-expand ${budgetMenuOpen ? 'force-visible' : ''}`}
+              className={`hover-expand ${
+                budgetMenuOpen ? 'force-visible' : ''
+              }`}
               style={{
                 flexDirection: 'row',
                 flexShrink: 1,
@@ -409,6 +448,8 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
             margin: 1,
             padding: '0 4px',
             borderRadius: 4,
+            // An outlined field: the one amount typed into
+            boxShadow: 'inset 0 0 0 1px ' + theme.tableBorder,
             ':hover': {
               boxShadow: 'inset 0 0 0 1px ' + theme.pageTextSubdued, //remove mobile color variable
               backgroundColor: theme.budgetCurrentMonth,
@@ -530,7 +571,24 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
             tooltipDisabled={balanceMenuOpen}
             creditDebt={creditDebt}
             cardToPay={cardToPay}
-          />
+          >
+            {({ status, className, ...props }) => (
+              <CellValueText
+                {...props}
+                className={cx(
+                  className,
+                  css({
+                    ...styles.tnum,
+                    paddingBlock: spacing.xxs,
+                    paddingInline: spacing.sm,
+                    borderRadius: radius.pill,
+                    fontWeight: 700,
+                    ...BALANCE_PILL_COLORS[status],
+                  }),
+                )}
+              />
+            )}
+          </BalanceWithCarryover>
         </Button>
 
         <Popover

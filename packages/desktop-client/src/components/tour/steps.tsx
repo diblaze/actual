@@ -4,6 +4,7 @@ import type { Step } from 'react-joyride';
 import * as monthUtils from '@actual-app/core/shared/months';
 
 import { Link } from '#components/common/Link';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
 
 import type { TourId } from './TourProvider';
 
@@ -57,6 +58,22 @@ function waitForElement(selector: string, timeoutMs = 4000): Promise<void> {
     }
     check();
   });
+}
+
+// The new sidebar lists everything; the classic one keeps some under More
+function GettingAroundContent() {
+  const newSidebarUI = useFeatureFlag('newSidebarUI');
+  return newSidebarUI ? (
+    <Trans>
+      The sidebar takes you to your budget, reports, scheduled transactions,
+      payees, rules, and settings.
+    </Trans>
+  ) : (
+    <Trans>
+      The sidebar takes you to your budget, reports, and scheduled transactions.
+      You can find payees, rules, and the settings under <strong>More</strong>.
+    </Trans>
+  );
 }
 
 function getBudgetTourSteps({ navigate, budgetType }: TourStepDeps): Step[] {
@@ -188,13 +205,7 @@ function getBudgetTourSteps({ navigate, budgetType }: TourStepDeps): Step[] {
       target: '[data-testid="sidebar-primary-buttons"]',
       placement: 'right',
       title: <Trans>Getting Around</Trans>,
-      content: (
-        <Trans>
-          The sidebar takes you to your budget, reports, and scheduled
-          transactions. You can find payees, rules, and the settings under{' '}
-          <strong>More</strong>.
-        </Trans>
-      ),
+      content: <GettingAroundContent />,
     },
     {
       id: ADD_ACCOUNT_STEP_ID,

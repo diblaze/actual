@@ -80,6 +80,8 @@ export function AccountsHeaderRow({
         Icon={SvgAdd}
         label={t('Add account')}
         onPress={onAddAccount}
+        // The tour points at it
+        data-testid="sidebar-add-account"
       />
       <View style={{ flex: 1 }} />
       <Link

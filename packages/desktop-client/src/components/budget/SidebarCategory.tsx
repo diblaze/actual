@@ -1,5 +1,5 @@
 // @ts-strict-ignore
-import React, { useRef } from 'react';
+import React, { useContext, useRef } from 'react';
 import type { CSSProperties, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +18,7 @@ import { useContextMenu } from '#hooks/useContextMenu';
 import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
+import { BudgetInspectorContext } from './envelope/EnvelopeBudgetComponents';
 import { SidebarCategoryButtons } from './SidebarCategoryButtons';
 
 type SidebarCategoryProps = {
@@ -70,6 +71,7 @@ export function SidebarCategory({
   const isPaymentCategory = useIsPaymentCategory()(category);
   const hasMenu = !isPaymentCategory || !!category.hidden;
   const triggerRef = useRef(null);
+  const openInspector = useContext(BudgetInspectorContext);
   const { handleContextMenu } = useContextMenu({
     triggerRef,
     enabled: hasMenu,
@@ -106,7 +108,24 @@ export function SidebarCategory({
       }}
       ref={triggerRef}
     >
-      <TextOneLine data-testid="category-name">{category.name}</TextOneLine>
+      {openInspector && !temporary ? (
+        <Button
+          variant="bare"
+          style={{
+            padding: 0,
+            minWidth: 0,
+            flexShrink: 1,
+            color: 'inherit',
+            fontWeight: 'inherit',
+            justifyContent: 'flex-start',
+          }}
+          onPress={() => openInspector(category.id)}
+        >
+          <TextOneLine data-testid="category-name">{category.name}</TextOneLine>
+        </Button>
+      ) : (
+        <TextOneLine data-testid="category-name">{category.name}</TextOneLine>
+      )}
       {/* Nothing to offer for a payment category */}
       {hasMenu && (
         <View style={{ flexShrink: 0, marginLeft: 5 }}>

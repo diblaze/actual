@@ -110,7 +110,7 @@ test.describe('Onboarding', () => {
 
     await expect(budgetPage.budgetTable).toBeVisible();
 
-    const accountPage = await navigation.goToAccountPage('All accounts');
+    const accountPage = await navigation.goToAllAccountsPage();
     await expect(accountPage.accountName).toBeVisible();
     await expect(accountPage.accountName).toHaveText('All Accounts');
     await expect(accountPage.accountBalance).toHaveText('0.00');

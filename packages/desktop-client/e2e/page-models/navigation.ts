@@ -73,9 +73,25 @@ export class Navigation {
     this.page = page;
   }
 
+  // Accounts are rows of the sidebar's account trees; On budget and Off
+  // budget are links
+  accountRow(accountName: string) {
+    const sidebar = this.page.getByRole('navigation', { name: 'Sidebar' });
+    const name = new RegExp(`^${accountName}`);
+    return sidebar
+      .getByRole('row', { name })
+      .or(sidebar.getByRole('link', { name }));
+  }
+
   async goToAccountPage(accountName: string) {
+    await this.accountRow(accountName).click();
+
+    return new AccountPage(this.page);
+  }
+
+  async goToAllAccountsPage() {
     await this.page
-      .getByRole('link', { name: new RegExp(`^${accountName}`) })
+      .getByRole('link', { name: 'Accounts', exact: true })
       .click();
 
     return new AccountPage(this.page);
@@ -192,12 +208,6 @@ export class Navigation {
   }
 
   async rightClickAccount(accountName: string) {
-    await this.page
-      .getByRole('link', { name: new RegExp(`^${accountName}`) })
-      .click({ button: 'right' });
-  }
-
-  async rightClickBudgetName() {
-    await this.page.getByTestId('budget-name').click({ button: 'right' });
+    await this.accountRow(accountName).click({ button: 'right' });
   }
 }

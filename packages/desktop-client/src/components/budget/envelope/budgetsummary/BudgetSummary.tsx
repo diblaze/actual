@@ -10,10 +10,12 @@ import {
 import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
 import { css } from '@emotion/css';
 
+import { OverspentCard } from '#components/budget/envelope/EnvelopeBudgetComponents';
 import { useEnvelopeBudget } from '#components/budget/envelope/EnvelopeBudgetContext';
 import { NotesButton } from '#components/NotesButton';
 import { useLocale } from '#hooks/useLocale';
@@ -278,12 +280,19 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                 borderColor: theme.tableBorder,
               }}
             />
-            <View style={{ margin: '23px 0' }}>
+            <View
+              style={{
+                margin: '23px 0',
+                paddingInline: spacing.md,
+                gap: spacing.md,
+              }}
+            >
               <ToBudget
                 prevMonthName={prevMonthName}
                 month={month}
                 onBudgetAction={onBudgetAction}
               />
+              <OverspentCard month={month} />
             </View>
           </>
         )}

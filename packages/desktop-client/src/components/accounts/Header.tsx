@@ -23,9 +23,11 @@ import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import { isPreviewId } from '@actual-app/core/shared/transactions';
 import { tsToRelativeTime } from '@actual-app/core/shared/util';
 import type {
   AccountEntity,
@@ -42,11 +44,14 @@ import { FilterButton } from '#components/filters/FiltersMenu';
 import { FiltersStack } from '#components/filters/FiltersStack';
 import type { SavedFilter } from '#components/filters/SavedFilterMenuButton';
 import { NotesButton } from '#components/NotesButton';
+import { PrivacyFilter } from '#components/PrivacyFilter';
 import { SelectedTransactionsButton } from '#components/transactions/SelectedTransactionsButton';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
+import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useLocalPref } from '#hooks/useLocalPref';
+import { useSelectedItems } from '#hooks/useSelected';
 import { useSplitsExpanded } from '#hooks/useSplitsExpanded';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
@@ -199,6 +204,24 @@ export function AccountHeader({
 
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const locale = useLocale();
+  const format = useFormat();
+
+  // One-tap chip over the existing filter conditions
+  const unclearedFilter = filterConditions?.find(
+    c => c.field === 'cleared' && c.op === 'is' && c.value === false,
+  );
+
+  // Bulk toolbar over the same batch actions as the selection menu; scheduled
+  // rows keep that menu only
+  const selectedItems = useSelectedItems();
+  const selectedIds = [...selectedItems].filter(id => !isPreviewId(id));
+  const selectedTransactions = selectedIds
+    .map(id => transactions.find(t => t.id === id))
+    .filter(t => !!t);
+  const selectedTotal = selectedTransactions
+    .filter(t => !(t.is_child && t.parent_id && selectedItems.has(t.parent_id)))
+    .reduce((sum, t) => sum + t.amount, 0);
+  const allSelectedCleared = selectedTransactions.every(t => t.cleared);
 
   let canSync = !!(account?.account_id && isUsingServer);
   if (!account) {
@@ -371,6 +394,33 @@ export function AccountHeader({
             {/* @ts-expect-error fix me */}
             <FilterButton onApply={onApplyFilter} />
           </View>
+          <Button
+            variant="bare"
+            aria-pressed={!!unclearedFilter}
+            style={{
+              borderRadius: 16,
+              padding: '4px 12px',
+              border: `1px solid ${
+                unclearedFilter ? theme.pillBorderSelected : theme.pillBorder
+              }`,
+              backgroundColor: unclearedFilter
+                ? theme.pillBackgroundSelected
+                : 'transparent',
+              color: unclearedFilter ? theme.pillTextSelected : theme.pageText,
+            }}
+            onPress={() =>
+              unclearedFilter
+                ? onDeleteFilter(unclearedFilter)
+                : onApplyFilter({
+                    field: 'cleared',
+                    op: 'is',
+                    value: false,
+                    type: 'boolean',
+                  })
+            }
+          >
+            <Trans>Uncleared</Trans>
+          </Button>
           <View style={{ flex: 1 }} />
 
           <Search
@@ -556,6 +606,52 @@ export function AccountHeader({
             </View>
           )}
         </SpaceBetween>
+        {selectedIds.length > 0 && (
+          <View
+            role="toolbar"
+            aria-label={t('Selected')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 10,
+              padding: '4px 4px 4px 12px',
+              borderRadius: 8,
+              backgroundColor: theme.tableRowBackgroundHighlight,
+              color: theme.tableRowBackgroundHighlightText,
+            }}
+          >
+            <Text style={{ fontWeight: 600 }}>
+              {t('{{count}} selected', { count: selectedIds.length })}
+            </Text>
+            <Text>·</Text>
+            <PrivacyFilter>
+              <Text style={styles.tnum}>
+                {format(selectedTotal, 'financial')}
+              </Text>
+            </PrivacyFilter>
+            <View style={{ flex: 1 }} />
+            <Button
+              variant="bare"
+              onPress={() => onBatchEdit('category', selectedIds)}
+            >
+              <Trans>Categorize</Trans>
+            </Button>
+            <Button
+              variant="bare"
+              onPress={() => onBatchEdit('cleared', selectedIds)}
+            >
+              {allSelectedCleared ? (
+                <Trans>Mark uncleared</Trans>
+              ) : (
+                <Trans>Mark cleared</Trans>
+              )}
+            </Button>
+            <Button variant="bare" onPress={() => onBatchDelete(selectedIds)}>
+              <Trans>Delete</Trans>
+            </Button>
+          </View>
+        )}
         {filterConditions?.length > 0 && (
           <FiltersStack
             conditions={filterConditions}

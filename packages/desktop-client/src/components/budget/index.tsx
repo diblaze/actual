@@ -21,13 +21,17 @@ import {
   useSaveCategoryMutation,
   useSortCategoriesMutation,
 } from '#budget';
+import { CategorySheetBody } from '#components/modals/CategorySheet';
 import { useCategories } from '#hooks/useCategories';
+import { useFormat } from '#hooks/useFormat';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useNavigate } from '#hooks/useNavigate';
 import { SheetNameProvider } from '#hooks/useSheetName';
 import { useSpreadsheet } from '#hooks/useSpreadsheet';
 import { useSyncedPref } from '#hooks/useSyncedPref';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 import { AutoSizingBudgetTable } from './DynamicBudgetTable';
 import * as envelopeBudget from './envelope/EnvelopeBudgetComponents';
@@ -53,8 +57,16 @@ export function Budget() {
   const [maxMonthsPref] = useGlobalPref('maxMonths');
   const maxMonths = maxMonthsPref || 1;
   const [initialized, setInitialized] = useState(false);
-  const { data: { grouped: categoryGroups } = { grouped: [] } } =
-    useCategories();
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const {
+    data: { grouped: categoryGroups, list: categories } = {
+      grouped: [],
+      list: [],
+    },
+  } = useCategories();
+  const inspected = categories.find(c => c.id === inspectedId);
+  const dispatch = useDispatch();
+  const format = useFormat();
 
   const init = useEffectEvent(() => {
     async function run() {
@@ -216,26 +228,28 @@ export function Budget() {
         onBudgetAction={onBudgetAction}
         onToggleSummaryCollapse={onToggleCollapse}
       >
-        <AutoSizingBudgetTable
-          type={budgetType}
-          prewarmStartMonth={startMonth}
-          startMonth={startMonth}
-          monthBounds={bounds}
-          maxMonths={maxMonths}
-          onMonthSelect={onMonthSelect}
-          onDeleteCategory={onDeleteCategory}
-          onDeleteGroup={onDeleteCategoryGroup}
-          onSaveCategory={onSaveCategory}
-          onSaveGroup={onSaveCategoryGroup}
-          onBudgetAction={onBudgetAction}
-          onShowActivity={onShowActivity}
-          onReorderCategory={reorderCategory.mutate}
-          onReorderGroup={reorderCategoryGroup.mutate}
-          onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
-          onSortCategories={(groupId, direction) =>
-            sortCategories.mutate({ groupId, direction })
-          }
-        />
+        <envelopeBudget.BudgetInspectorContext.Provider value={setInspectedId}>
+          <AutoSizingBudgetTable
+            type={budgetType}
+            prewarmStartMonth={startMonth}
+            startMonth={startMonth}
+            monthBounds={bounds}
+            maxMonths={maxMonths}
+            onMonthSelect={onMonthSelect}
+            onDeleteCategory={onDeleteCategory}
+            onDeleteGroup={onDeleteCategoryGroup}
+            onSaveCategory={onSaveCategory}
+            onSaveGroup={onSaveCategoryGroup}
+            onBudgetAction={onBudgetAction}
+            onShowActivity={onShowActivity}
+            onReorderCategory={reorderCategory.mutate}
+            onReorderGroup={reorderCategoryGroup.mutate}
+            onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
+            onSortCategories={(groupId, direction) =>
+              sortCategories.mutate({ groupId, direction })
+            }
+          />
+        </envelopeBudget.BudgetInspectorContext.Provider>
       </EnvelopeBudgetProvider>
     );
   }
@@ -256,7 +270,63 @@ export function Budget() {
           overflow: 'hidden',
         }}
       >
-        <View style={{ flex: 1 }}>{table}</View>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={{ flex: 1 }}>{table}</View>
+          {budgetType !== 'tracking' && inspected && (
+            <CategorySheetBody
+              key={inspected.id}
+              name="envelope-balance-menu"
+              categoryId={inspected.id}
+              month={startMonth}
+              onDismiss={() => setInspectedId(null)}
+              onShowActivity={() => onShowActivity(inspected.id, startMonth)}
+              onCover={balance =>
+                dispatch(
+                  pushModal({
+                    modal: {
+                      name: 'cover',
+                      options: {
+                        title: inspected.name,
+                        month: startMonth,
+                        amount: balance,
+                        categoryId: inspected.id,
+                        onSubmit: (amount, from) =>
+                          onBudgetAction(startMonth, 'cover-overspending', {
+                            to: inspected.id,
+                            from,
+                            amount,
+                            currencyCode: format.currency.code,
+                          }),
+                      },
+                    },
+                  }),
+                )
+              }
+              onTransfer={balance =>
+                dispatch(
+                  pushModal({
+                    modal: {
+                      name: 'transfer',
+                      options: {
+                        title: inspected.name,
+                        month: startMonth,
+                        amount: balance,
+                        categoryId: inspected.id,
+                        onSubmit: (amount, to) =>
+                          onBudgetAction(startMonth, 'transfer-category', {
+                            from: inspected.id,
+                            to,
+                            amount,
+                            currencyCode: format.currency.code,
+                          }),
+                      },
+                    },
+                  }),
+                )
+              }
+            />
+          )}
+        </View>
       </View>
     </SheetNameProvider>
   );
