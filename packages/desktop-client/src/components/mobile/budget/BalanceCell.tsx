@@ -12,6 +12,7 @@ import { css, cx } from '@emotion/css';
 import { AutoTextSize } from 'auto-text-size';
 
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
+import type { BalanceStatus } from '#components/budget/BalanceWithCarryover';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { useCreditCardDebt } from '#hooks/useCreditCardDebt';
 import { useCreditCardToPay } from '#hooks/useCreditCardToPay';
@@ -20,7 +21,30 @@ import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
 import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
-import { getColumnWidth, PILL_STYLE } from './BudgetTable';
+import { AMOUNT_FONT, CELL_BUTTON_STYLE, FitAmountColumn } from './BudgetTable';
+
+// Pill colours for each balance state; the sheet's Balance uses the text
+export const BALANCE_PILL_COLORS: Record<
+  BalanceStatus,
+  { backgroundColor: string; color: string }
+> = {
+  positive: {
+    backgroundColor: theme.balancePositiveBackground,
+    color: theme.balancePositiveText,
+  },
+  warning: {
+    backgroundColor: theme.balanceWarningBackground,
+    color: theme.balanceWarningText,
+  },
+  negative: {
+    backgroundColor: theme.balanceNegativeBackground,
+    color: theme.balanceNegativeText,
+  },
+  zero: {
+    backgroundColor: theme.balanceZeroBackground,
+    color: theme.balanceZeroText,
+  },
+};
 
 type BalanceCellProps = {
   binding: Binding<
@@ -28,7 +52,6 @@ type BalanceCellProps = {
     'leftover' | 'sum-amount'
   >;
   category: CategoryEntity;
-  show3Columns?: boolean;
   onPress?: () => void;
   'aria-label'?: string;
 };
@@ -36,15 +59,11 @@ type BalanceCellProps = {
 export function BalanceCell({
   binding,
   category,
-  show3Columns,
   onPress,
   'aria-label': ariaLabel,
 }: BalanceCellProps) {
   const { t } = useTranslation();
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
-  const columnWidth = getColumnWidth({
-    show3Columns,
-  });
 
   const goal =
     budgetType === 'tracking'
@@ -85,36 +104,45 @@ export function BalanceCell({
       cardToPay={cardToPay}
       CarryoverIndicator={MobileCarryoverIndicator}
     >
-      {({ type, value, className: defaultClassName }) => (
+      {({ type, value, status, className: defaultClassName }) => (
         <Button
           variant="bare"
-          style={{
-            ...PILL_STYLE,
-            maxWidth: columnWidth,
-          }}
+          style={CELL_BUTTON_STYLE}
           onPress={onPress}
           aria-label={ariaLabel}
         >
-          <PrivacyFilter>
-            <AutoTextSize
-              key={value}
-              as={Text}
-              minFontSizePx={6}
-              maxFontSizePx={12}
-              mode="oneline"
-              className={cx(
-                defaultClassName,
-                css({
-                  ...styles.tnum,
-                  maxWidth: columnWidth,
-                  textAlign: 'right',
-                  fontSize: 12,
-                }),
-              )}
-            >
-              {format(value, type)}
-            </AutoTextSize>
-          </PrivacyFilter>
+          <View
+            data-testid="balance-pill"
+            style={{
+              maxWidth: '100%',
+              borderRadius: 14,
+              paddingBlock: 5,
+              paddingInline: 11,
+              backgroundColor: BALANCE_PILL_COLORS[status].backgroundColor,
+            }}
+          >
+            <FitAmountColumn column={2} text={format(value, type)} />
+            <PrivacyFilter>
+              <AutoTextSize
+                key={value}
+                as={Text}
+                {...AMOUNT_FONT}
+                mode="oneline"
+                className={cx(
+                  defaultClassName,
+                  css({
+                    ...styles.tnum,
+                    textAlign: 'right',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: BALANCE_PILL_COLORS[status].color,
+                  }),
+                )}
+              >
+                {format(value, type)}
+              </AutoTextSize>
+            </PrivacyFilter>
+          </View>
         </Button>
       )}
     </BalanceWithCarryover>

@@ -1,13 +1,24 @@
 import React, { useEffect, useEffectEvent, useRef } from 'react';
 import type { ReactElement } from 'react';
+import { Modal, ModalOverlay } from 'react-aria-components';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useTranslation } from 'react-i18next';
-import { Navigate, Route, Routes, useHref, useLocation } from 'react-router';
+import {
+  matchPath,
+  Navigate,
+  Route,
+  Routes,
+  useHref,
+  useLocation,
+} from 'react-router';
+import type { Location } from 'react-router';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { theme } from '@actual-app/components/theme';
+import { radius } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import * as undo from '@actual-app/core/platform/client/undo';
+import { isElectron } from '@actual-app/core/shared/environment';
 
 import { getLatestAppVersion, sync } from '#app/appSlice';
 import { ProtectedRoute } from '#auth/ProtectedRoute';
@@ -26,12 +37,13 @@ import { UserAccessPage } from './admin/UserAccess/UserAccessPage';
 import { UserDirectoryPage } from './admin/UserDirectory/UserDirectoryPage';
 import { BankSyncStatus } from './BankSyncStatus';
 import { CommandBar } from './CommandBar';
+import { MODAL_Z_INDEX } from './common/Modal';
 import { ContextMenu } from './ContextMenu';
 import { EnableBankingCallback } from './EnableBankingCallback';
 import { FeatureErrorFallback } from './FeatureErrorFallback';
 import { GlobalKeys } from './GlobalKeys';
 import { MobileBankSyncAccountEditPage } from './mobile/banksync/MobileBankSyncAccountEditPage';
-import { MobileNavTabs } from './mobile/MobileNavTabs';
+import { MobileNavTabs, TabletRail } from './mobile/MobileNavTabs';
 import { TransactionEdit } from './mobile/transactions/TransactionEdit';
 import { NotificationsPage } from './news/NotificationsPage';
 import { Notifications } from './Notifications';
@@ -71,14 +83,15 @@ function WideNotSupported({
   redirectTo?: string;
   children: ReactElement;
 }) {
-  const { isNarrowWidth } = useResponsive();
+  // Phone pages also serve tablets (below 1100px)
+  const { isWideWidth } = useResponsive();
   const navigate = useNavigate();
   useEffect(() => {
-    if (!isNarrowWidth) {
+    if (isWideWidth) {
       void navigate(redirectTo);
     }
-  }, [isNarrowWidth, navigate, redirectTo]);
-  return isNarrowWidth ? children : null;
+  }, [isWideWidth, navigate, redirectTo]);
+  return isWideWidth ? null : children;
 }
 
 function RouterBehaviors() {
@@ -92,10 +105,27 @@ function RouterBehaviors() {
 }
 
 export function FinancesApp() {
-  const { isNarrowWidth } = useResponsive();
+  const { isWideWidth, isMediumWidth, isNarrowWidth } = useResponsive();
   useMetaThemeColor(theme.mobileViewTheme);
 
   const location = useLocation();
+  const navigate = useNavigate();
+  // On a phone the transaction editor is a sheet over the screen it was
+  // opened from, which stays rendered behind it. A deep link has no such
+  // screen and shows the editor on its own.
+  const previousLocation: Location | undefined =
+    location.state?.previousLocation;
+  const isEditorSheet =
+    isNarrowWidth &&
+    previousLocation != null &&
+    matchPath('/transactions/:transactionId', location.pathname) != null &&
+    matchPath('/transactions/:transactionId', previousLocation.pathname) ==
+      null;
+  const mainLocation =
+    isEditorSheet && previousLocation ? previousLocation : location;
+  // The editor draws its own header; the page header slot stays for pages
+  const isEditorPage =
+    matchPath('/transactions/:transactionId', mainLocation.pathname) != null;
   const dispatch = useDispatch();
   const { t } = useTranslation();
 
@@ -215,7 +245,7 @@ export function FinancesApp() {
             flex: 1,
           }}
         >
-          <FloatableSidebar />
+          {isMediumWidth ? <TabletRail /> : <FloatableSidebar />}
 
           <View
             style={{
@@ -226,8 +256,18 @@ export function FinancesApp() {
               width: '100%',
             }}
           >
+            {/* Tablet hides the Titlebar; keep the Electron window draggable */}
+            {isMediumWidth && isElectron() && (
+              <View
+                style={{
+                  flexShrink: 0,
+                  height: 12,
+                  WebkitAppRegion: 'drag',
+                }}
+              />
+            )}
             <ScrollProvider
-              isDisabled={!isNarrowWidth}
+              isDisabled={isWideWidth}
               scrollableRef={scrollableRef}
             >
               <MobilePageHeaderProvider>
@@ -239,21 +279,23 @@ export function FinancesApp() {
                     position: 'relative',
                   }}
                 >
-                  <Titlebar
-                    style={{
-                      WebkitAppRegion: 'drag',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      zIndex: 1000,
-                    }}
-                  />
+                  {isWideWidth && (
+                    <Titlebar
+                      style={{
+                        WebkitAppRegion: 'drag',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 1000,
+                      }}
+                    />
+                  )}
                   <Notifications />
                   <BankSyncStatus />
-                  {isNarrowWidth && <MobilePageHeaderSlot />}
+                  {!isWideWidth && !isEditorPage && <MobilePageHeaderSlot />}
 
-                  <Routes>
+                  <Routes location={mainLocation}>
                     <Route
                       path="/"
                       element={<Navigate to="/budget" replace />}
@@ -469,9 +511,52 @@ export function FinancesApp() {
                   </Routes>
                 </View>
 
-                <Routes>
+                {isEditorSheet && (
+                  <ModalOverlay
+                    isOpen
+                    // Cancel and Escape close it; a stray tap above must not
+                    onOpenChange={isOpen => !isOpen && navigate(-1)}
+                    style={{
+                      position: 'fixed',
+                      inset: 0,
+                      // Under the pickers it opens, which use MODAL_Z_INDEX
+                      zIndex: MODAL_Z_INDEX - 2,
+                      backgroundColor: theme.overlayBackground,
+                    }}
+                  >
+                    <Modal
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(64px + env(safe-area-inset-top))',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        borderTopLeftRadius: radius.sheet,
+                        borderTopRightRadius: radius.sheet,
+                        backgroundColor: theme.pageBackground,
+                        color: theme.pageText,
+                        boxShadow: theme.floatingElevation,
+                      }}
+                    >
+                      <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
+                        <Routes>
+                          <Route
+                            path="/transactions/:transactionId"
+                            element={<TransactionEdit />}
+                          />
+                        </Routes>
+                      </ErrorBoundary>
+                    </Modal>
+                  </ModalOverlay>
+                )}
+
+                <Routes location={mainLocation}>
                   <Route path="/budget" element={<MobileNavTabs />} />
                   <Route path="/accounts" element={<MobileNavTabs />} />
+                  <Route path="/accounts/:id" element={<MobileNavTabs />} />
                   <Route path="/settings" element={<MobileNavTabs />} />
                   <Route path="/notifications" element={<MobileNavTabs />} />
                   <Route path="/reports" element={<MobileNavTabs />} />
@@ -483,6 +568,7 @@ export function FinancesApp() {
                   <Route path="/rules" element={<MobileNavTabs />} />
                   <Route path="/payees" element={<MobileNavTabs />} />
                   <Route path="/schedules" element={<MobileNavTabs />} />
+                  <Route path="/tags" element={<MobileNavTabs />} />
                   <Route path="*" element={null} />
                 </Routes>
               </MobilePageHeaderProvider>

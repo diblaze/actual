@@ -19,7 +19,6 @@ import { FieldLabel } from '#components/mobile/MobileForms';
 import { AmountInput } from '#components/mobile/transactions/AmountInput';
 import { useAccount } from '#hooks/useAccount';
 import { useDateFormat } from '#hooks/useDateFormat';
-import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useSheetValue } from '#hooks/useSheetValue';
@@ -37,7 +36,6 @@ export function AccountReconcileModal({
 }: AccountReconcileModalProps) {
   const { t } = useTranslation();
   const account = useAccount(accountId);
-  const mobileCalculatorEnabled = useFeatureFlag('mobileCalculator');
   const clearedBalance = useSheetValue<'account', 'balanceCleared'>(
     bindings.accountBalanceCleared(accountId),
   );
@@ -68,12 +66,7 @@ export function AccountReconcileModal({
   };
 
   return (
-    <Modal
-      name="account-reconcile"
-      wrapperProps={{
-        style: mobileCalculatorEnabled ? { paddingBottom: '30vh' } : undefined,
-      }}
-    >
+    <Modal name="account-reconcile">
       {({ state }) => (
         <>
           <ModalHeader

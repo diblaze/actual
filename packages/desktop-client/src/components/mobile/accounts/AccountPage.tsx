@@ -7,14 +7,15 @@ import { styles } from '@actual-app/components/styles';
 import type { CSSProperties } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import type { AccountEntity } from '@actual-app/core/types/models';
 
 import { useReopenAccountMutation, useUpdateAccountMutation } from '#accounts';
 import { isAccountFailedSync } from '#accounts/syncStatus';
+import { UncategorizedBanner } from '#components/mobile/ActionBanner';
 import { MobileBackButton } from '#components/mobile/MobileBackButton';
-import { AddTransactionButton } from '#components/mobile/transactions/AddTransactionButton';
 import { MobilePageHeader, Page } from '#components/Page';
 import { useAccount } from '#hooks/useAccount';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -25,6 +26,7 @@ import {
 } from '#modals/modalsSlice';
 import { useDispatch, useSelector } from '#redux';
 
+import { ALL_ACCOUNTS_ID } from './AccountsPage';
 import { AccountTransactions } from './AccountTransactions';
 import { AllAccountTransactions } from './AllAccountTransactions';
 import { OffBudgetAccountTransactions } from './OffBudgetAccountTransactions';
@@ -51,6 +53,8 @@ export function AccountPage() {
           return t('Uncategorized');
         case 'closed':
           return t('Closed Accounts');
+        case ALL_ACCOUNTS_ID:
+          return t('Transactions');
         default:
           return t('All Accounts');
       }
@@ -69,12 +73,19 @@ export function AccountPage() {
               <NameOnlyHeader name={nameFromId(accountIdParam)} />
             )
           }
-          leftContent={<MobileBackButton />}
-          rightContent={<AddTransactionButton accountId={account?.id} />}
+          // The Transactions tab is a top-level destination: no way back
+          leftContent={
+            accountIdParam !== ALL_ACCOUNTS_ID && <MobileBackButton />
+          }
         />
       }
       padding={0}
     >
+      {accountIdParam === ALL_ACCOUNTS_ID && (
+        <UncategorizedBanner
+          style={{ margin: `0 ${spacing.lg}px ${spacing.md}px` }}
+        />
+      )}
       {/* This key forces the whole table rerender when the number format changes */}
       <Fragment key={numberFormat + hideFraction}>
         {account ? (

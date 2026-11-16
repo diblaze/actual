@@ -14,7 +14,8 @@ export class BalanceMenuModal {
     this.locator = locator;
     this.page = locator.page();
 
-    this.heading = locator.getByRole('heading');
+    // The category name; the sheet's "Recent transactions" is a heading too
+    this.heading = locator.getByRole('heading', { level: 1 });
     this.balanceAmountInput = locator.getByTestId('amount-input');
     this.transferToAnotherCategoryButton = locator.getByRole('button', {
       name: 'Transfer to another category',

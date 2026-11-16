@@ -6,6 +6,8 @@ import { SvgAdd } from '@actual-app/components/icons/v1';
 
 import { useNavigate } from '#hooks/useNavigate';
 
+import { primeIOSKeyboard } from './iosKeyboard';
+
 type AddTransactionButtonProps = {
   to?: string;
   accountId?: string;
@@ -25,6 +27,7 @@ export function AddTransactionButton({
       aria-label={t('Add transaction')}
       style={{ margin: 10 }}
       onPress={() => {
+        primeIOSKeyboard();
         void navigate(to, { state: { accountId, categoryId } });
       }}
     >

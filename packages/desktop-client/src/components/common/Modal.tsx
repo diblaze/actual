@@ -1,4 +1,12 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ComponentPropsWithoutRef,
   ComponentPropsWithRef,
@@ -24,7 +32,7 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
-import { tokens } from '@actual-app/components/tokens';
+import { radius, tokens } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 import { AutoTextSize } from 'auto-text-size';
@@ -34,10 +42,15 @@ import { useModalState } from '#hooks/useModalState';
 
 export const MODAL_Z_INDEX = 3000;
 
+// Lets ModalTitle mark its text as the dialog's accessible name.
+const ModalTitleIdContext = createContext<string | undefined>(undefined);
+
 type ModalProps = ComponentPropsWithRef<typeof ReactAriaModal> & {
   name: string;
   isLoading?: boolean;
   noAnimation?: boolean;
+  // Long-list pickers fill the phone screen instead of opening as a sheet.
+  fullScreenOnNarrow?: boolean;
   style?: CSSProperties;
   onClose?: () => void;
   wrapperProps?: {
@@ -52,6 +65,7 @@ export const Modal = ({
   name,
   isLoading = false,
   noAnimation = false,
+  fullScreenOnNarrow = false,
   style,
   children,
   onClose,
@@ -62,6 +76,7 @@ export const Modal = ({
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
   const { enableScope, disableScope } = useHotkeysContext();
+  const titleId = useId();
 
   // This deactivates any key handlers in the "app" scope
   useEffect(() => {
@@ -104,16 +119,25 @@ export const Modal = ({
         <View
           style={{
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            // On narrow screens the dialog is a bottom sheet.
+            alignItems: isNarrowWidth ? 'stretch' : 'center',
+            justifyContent: isNarrowWidth ? 'flex-end' : 'center',
             height: 'var(--visual-viewport-height)',
             overflowY: 'auto',
+            // A sheet moves up while the calculator keypad is open
+            ...(isNarrowWidth && {
+              paddingBottom: 'var(--calculator-keyboard-height, 0px)',
+              transition: 'padding-bottom 100ms',
+            }),
             ...wrapperProps?.style,
           }}
         >
           <ReactAriaModal>
             {modalProps => (
               <Dialog
+                // The title names the dialog when rendered; aria-label is
+                // the fallback when no element carries titleId.
+                aria-labelledby={titleId}
                 aria-label={t('Modal dialog')}
                 className={css(styles.lightScrollbar)}
                 style={{
@@ -122,34 +146,63 @@ export const Modal = ({
               >
                 <ModalContentContainer
                   noAnimation={noAnimation}
+                  noRotate={isNarrowWidth}
                   isActive={isActive(name)}
                   {...containerProps}
                   style={{
                     flex: 1,
                     padding: 10,
                     willChange: 'opacity, transform',
-                    maxWidth: '90vw',
-                    minWidth: '90vw',
                     maxHeight: 'calc(var(--visual-viewport-height) * 0.9)',
                     minHeight: 0,
-                    borderRadius: 6,
                     //border: '1px solid ' + theme.modalBorder,
                     color: theme.pageText,
-                    backgroundColor: theme.modalBackground,
+                    // Phone sheets share the page surface their cards sit on
+                    backgroundColor: isNarrowWidth
+                      ? theme.pageBackground
+                      : theme.modalBackground,
                     opacity: isHidden ? 0 : 1,
-                    [`@media (min-width: ${tokens.breakpoint_small})`]: {
-                      minWidth: tokens.breakpoint_small,
-                    },
+                    ...(isNarrowWidth
+                      ? {
+                          borderTopLeftRadius: radius.sheet,
+                          borderTopRightRadius: radius.sheet,
+                          paddingBottom:
+                            'calc(10px + env(safe-area-inset-bottom))',
+                        }
+                      : {
+                          maxWidth: '90vw',
+                          minWidth: '90vw',
+                          borderRadius: 6,
+                          [`@media (min-width: ${tokens.breakpoint_small})`]: {
+                            minWidth: tokens.breakpoint_small,
+                          },
+                        }),
                     overflowY: 'auto',
                     ...styles.shadowLarge,
                     ...containerProps?.style,
+                    // Bottom sheets always span the screen, whatever width
+                    // the dialog asks for on desktop.
+                    ...(isNarrowWidth && {
+                      width: '100%',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                    }),
+                    ...(isNarrowWidth &&
+                      fullScreenOnNarrow && {
+                        height: 'var(--visual-viewport-height)',
+                        maxHeight: 'var(--visual-viewport-height)',
+                        borderRadius: 0,
+                        paddingTop: 'calc(10px + env(safe-area-inset-top))',
+                      }),
                   }}
                 >
                   <View style={{ paddingTop: 0, flex: 1, flexShrink: 0 }}>
                     <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
-                      {typeof children === 'function'
-                        ? children(modalProps)
-                        : children}
+                      <ModalTitleIdContext.Provider value={titleId}>
+                        {typeof children === 'function'
+                          ? children(modalProps)
+                          : children}
+                      </ModalTitleIdContext.Provider>
                     </ErrorBoundary>
                   </View>
                   {isLoading && (
@@ -185,6 +238,7 @@ export const Modal = ({
 type ModalContentContainerProps = {
   style?: CSSProperties;
   noAnimation?: boolean;
+  noRotate?: boolean;
   isActive?: boolean;
   children: ReactNode;
 };
@@ -192,6 +246,7 @@ type ModalContentContainerProps = {
 const ModalContentContainer = ({
   style,
   noAnimation,
+  noRotate,
   isActive,
   children,
 }: ModalContentContainerProps) => {
@@ -214,7 +269,9 @@ const ModalContentContainer = ({
         contentRef.current.style.willChange = 'auto';
         contentRef.current.style.pointerEvents = 'auto';
       } else {
-        contentRef.current.style.transform = `translateY(-40px) scale(.95) rotate(${rotateFactor.current}deg)`;
+        contentRef.current.style.transform = noRotate
+          ? 'translateY(-40px) scale(.95)'
+          : `translateY(-40px) scale(.95) rotate(${rotateFactor.current}deg)`;
         contentRef.current.style.pointerEvents = 'none';
       }
     }
@@ -247,7 +304,7 @@ const ModalContentContainer = ({
     } else {
       setProps();
     }
-  }, [noAnimation, isActive]);
+  }, [noAnimation, noRotate, isActive]);
 
   return (
     <View
@@ -397,6 +454,7 @@ export function ModalTitle({
   onTitleUpdate,
   shrinkOnOverflow = false,
 }: ModalTitleProps) {
+  const titleId = useContext(ModalTitleIdContext);
   const [isEditing, setIsEditing] = useState(false);
 
   const onTitleClick = () => {
@@ -450,6 +508,7 @@ export function ModalTitle({
       {shrinkOnOverflow ? (
         <AutoTextSize
           as={Text}
+          id={titleId}
           minFontSizePx={15}
           maxFontSizePx={25}
           onClick={onTitleClick}
@@ -465,6 +524,7 @@ export function ModalTitle({
         </AutoTextSize>
       ) : (
         <TextOneLine
+          id={titleId}
           onClick={onTitleClick}
           style={{
             fontSize: 25,

@@ -36,9 +36,7 @@ test.describe('Help menu', () => {
     await page.getByRole('button', { name: 'Help' }).click();
     await page.getByText('Keyboard shortcuts').click();
 
-    const keyboardShortcutsModal = page.getByRole('dialog', {
-      name: 'Modal dialog',
-    });
+    const keyboardShortcutsModal = page.getByRole('dialog').last();
     await expect(keyboardShortcutsModal).toBeVisible();
     await expect(page).toMatchThemeScreenshots();
 

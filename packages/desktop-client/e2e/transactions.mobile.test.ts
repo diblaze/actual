@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { ConfigurationPage } from './page-models/configuration-page';
+import { MobileAccountPage } from './page-models/mobile-account-page';
 import { MobileNavigation } from './page-models/mobile-navigation';
 
 test.describe('Mobile Transactions', () => {
@@ -25,6 +26,18 @@ test.describe('Mobile Transactions', () => {
   test.afterEach(async () => {
     await page?.close();
   });
+
+  // The budget's Uncategorized banner opens the list
+  async function goToUncategorizedPage() {
+    await navigation.goToBudgetPage();
+    await page
+      .getByRole('group', { name: /Uncategorized$/ })
+      .getByRole('button', { name: 'Show' })
+      .click();
+    const uncategorizedPage = new MobileAccountPage(page);
+    await uncategorizedPage.waitFor();
+    return uncategorizedPage;
+  }
 
   test('creates a transaction via footer button', async () => {
     const transactionEntryPage = await navigation.goToTransactionEntryPage();
@@ -62,21 +75,37 @@ test.describe('Mobile Transactions', () => {
     );
     // Note: no easy way to test cleared checkbox
     await expect(page.getByTestId('transaction-form'))
-      .toMatchAriaSnapshot(`- text: Amount
-- textbox
-- text: 23.42 Payee
+      .toMatchAriaSnapshot(`- button "Cancel"
+- heading "New Transaction" [level=2]
+- group "Amount":
+  - textbox
+  - text: "23.42"
+- radiogroup "Type":
+  - radio "Expense" [checked]
+  - radio "Income"
+  - radio "Transfer"
+- text: Payee
 - button "Kroger" [disabled]
+- group "Recent payees":
+  - button "Kroger" [disabled]
+  - button "Deposit" [disabled]
+  - button "Starting Balance" [disabled]
+  - button "Dominion Power" [disabled]
+  - button "Extra Watery" [disabled]
 - text: Category
 - button "Food" [disabled]
-- button "Split" [disabled]:
-  - img
-  - text: Split
 - text: Account
 - button "HSBC" [disabled]
 - text: Date
 - textbox [disabled]: 2025-10-31
-- text: Cleared Notes
-- textbox [disabled]: just a note`);
+- text: Notes
+- textbox "Add a note (optional)" [disabled]: just a note
+- button "Add tag":
+  - img
+- text: Cleared
+- button "Split" [disabled]:
+  - img
+  - text: Split`);
   });
 
   test('removes the payee from a new transaction', async () => {
@@ -148,7 +177,7 @@ test.describe('Mobile Transactions', () => {
     );
     await transactionEntryPage.createTransaction();
 
-    const uncategorizedPage = await navigation.goToUncategorizedPage();
+    const uncategorizedPage = await goToUncategorizedPage();
     transactionEntryPage = await uncategorizedPage.clickCreateTransaction();
 
     await expect(transactionEntryPage.header).toHaveText('New Transaction');
@@ -181,7 +210,7 @@ test.describe('Mobile Transactions', () => {
     );
     await transactionEntryPage.createTransaction();
 
-    const uncategorizedPage = await navigation.goToUncategorizedPage();
+    const uncategorizedPage = await goToUncategorizedPage();
     transactionEntryPage = await uncategorizedPage.clickCreateTransaction();
 
     await expect(transactionEntryPage.header).toHaveText('New Transaction');

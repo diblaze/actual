@@ -14,6 +14,10 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import {
+  currencyToAmount,
+  integerToCurrency,
+} from '@actual-app/core/shared/util';
 import type { TransObjectLiteral } from '@actual-app/core/types/util';
 import { css } from '@emotion/css';
 
@@ -22,8 +26,6 @@ import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useFormat } from '#hooks/useFormat';
 import { useSheetValue } from '#hooks/useSheetValue';
 import type { Binding } from '#spreadsheet';
-
-import { makeBalanceAmountStyle } from './util';
 
 type CarryoverIndicatorProps = {
   style?: CSSProperties;
@@ -69,9 +71,45 @@ function GoalTooltipRow({ children }) {
 
 type CellValueChildren = ComponentPropsWithoutRef<typeof CellValue>['children'];
 
+export type BalanceStatus = 'positive' | 'warning' | 'negative' | 'zero';
+
+type BalanceState =
+  | 'card'
+  | 'negative'
+  | 'underfunded'
+  | 'funded'
+  | 'zero'
+  | 'positive';
+
+const STATE_TEXT_COLOR: Record<BalanceState, string> = {
+  card: theme.warningText,
+  negative: theme.budgetNumberNegative,
+  underfunded: theme.templateNumberUnderFunded,
+  funded: theme.templateNumberFunded,
+  zero: theme.budgetNumberZero,
+  positive: theme.budgetNumberPositive,
+};
+
+const STATE_STATUS: Record<BalanceState, BalanceStatus> = {
+  card: 'warning',
+  negative: 'negative',
+  underfunded: 'warning',
+  funded: 'positive',
+  zero: 'zero',
+  positive: 'positive',
+};
+
+// The amount as displayed: with hideFraction, -0.40 shows as 0
+function asShown(value: number | null) {
+  return typeof value === 'number'
+    ? currencyToAmount(integerToCurrency(value))
+    : 0;
+}
+
 type ChildrenWithClassName = (
   props: Parameters<CellValueChildren>[0] & {
     className: string;
+    status: BalanceStatus;
   },
 ) => ReturnType<CellValueChildren>;
 
@@ -102,6 +140,12 @@ type BalanceWithCarryoverProps = Omit<
   cardToPay?: number;
 };
 
+// Overspent only on a card: the card payment category pays it, so it does
+// not come out of next month's To Budget
+export function isCardOnlyOverspent(balance: number, creditDebt: number) {
+  return creditDebt > 0 && balance < 0 && balance + creditDebt >= 0;
+}
+
 export function BalanceWithCarryover({
   carryover,
   balance,
@@ -125,20 +169,32 @@ export function BalanceWithCarryover({
   const longGoalValue = useSheetValue(longGoal);
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const isCarryingCardDebt = useFeatureFlag('ccCarryCardDebt');
-  const getBalanceAmountStyle = useCallback(
-    (balanceValue: number) =>
+  // The balance's state, decided once; its text colour and the cells' pill
+  // colours both map from it
+  const getBalanceState = useCallback(
+    (balanceValue: number): BalanceState => {
+      const amount = asShown(balanceValue);
       // Overspent only on a card: the debt stays on the card instead of
       // coming out of next month's To Budget, so it is a warning, not red.
       // A payment category short of its card balance is a warning too, unless
       // it is overspent: that is cash overspending, red like any other.
-      (cardToPay > 0 && balanceValue >= 0) ||
-      (creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0)
-        ? { color: theme.warningText }
-        : makeBalanceAmountStyle(
-            balanceValue,
-            isGoalTemplatesEnabled ? goalValue : null,
-            longGoalValue === 1 ? balanceValue : budgetedValue,
-          ),
+      if (
+        (cardToPay > 0 && amount >= 0) ||
+        isCardOnlyOverspent(balanceValue, creditDebt)
+      ) {
+        return 'card';
+      }
+      if (amount < 0) {
+        return 'negative';
+      }
+      if (isGoalTemplatesEnabled && goalValue != null) {
+        return asShown(longGoalValue === 1 ? balanceValue : budgetedValue) <
+          asShown(goalValue)
+          ? 'underfunded'
+          : 'funded';
+      }
+      return amount === 0 ? 'zero' : 'positive';
+    },
     [
       budgetedValue,
       cardToPay,
@@ -162,7 +218,7 @@ export function BalanceWithCarryover({
   const getDefaultClassName = useCallback(
     (balanceValue: number) =>
       css({
-        ...getBalanceAmountStyle(balanceValue),
+        color: STATE_TEXT_COLOR[getBalanceState(balanceValue)],
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         textAlign: 'right',
@@ -171,7 +227,7 @@ export function BalanceWithCarryover({
         }),
         ':hover': { textDecoration: 'underline' },
       }),
-    [getBalanceAmountStyle, isDisabled],
+    [getBalanceState, isDisabled],
   );
   const GoalStatusDisplay = useCallback(
     (balanceValue, type) => {
@@ -321,6 +377,7 @@ export function BalanceWithCarryover({
                 name,
                 value: balanceValue,
                 className: getDefaultClassName(balanceValue),
+                status: STATE_STATUS[getBalanceState(balanceValue)],
               })
             ) : (
               <CellValueText
@@ -334,7 +391,9 @@ export function BalanceWithCarryover({
 
           {carryoverValue && (
             <CarryoverIndicatorComponent
-              style={getBalanceAmountStyle(balanceValue)}
+              style={{
+                color: STATE_TEXT_COLOR[getBalanceState(balanceValue)],
+              }}
             />
           )}
           {shouldInlineGoalStatus &&

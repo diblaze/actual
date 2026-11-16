@@ -66,12 +66,7 @@ export function TrackingBudgetMonthMenuModal({
   const displayMonth = monthUtils.format(month, "MMMM ''yy", locale);
 
   return (
-    <Modal
-      name="tracking-budget-month-menu"
-      containerProps={{
-        style: { height: '50vh' },
-      }}
-    >
+    <Modal name="tracking-budget-month-menu">
       {({ state }) => (
         <>
           <ModalHeader

@@ -318,6 +318,7 @@ export type Modal =
       options: {
         onSelect: (payeeId: string | null) => void;
         showNoneOption?: boolean;
+        transferOnly?: boolean;
         onClose?: () => void;
       };
     }
@@ -477,8 +478,11 @@ export type Modal =
         categoryId: CategoryEntity['id'];
         month: string;
         onCarryover?: (carryover: boolean) => void;
-        onTransfer?: () => void;
-        onCover?: () => void;
+        onTransfer?: (balance: number) => void;
+        onCover?: (balance: number) => void;
+        onShowActivity?: () => void;
+        onEditCategory?: () => void;
+        onBudgetAction?: (month: string, action: string, args: unknown) => void;
       };
     }
   | {
@@ -507,6 +511,9 @@ export type Modal =
         categoryId: CategoryEntity['id'];
         month: string;
         onCarryover: (carryover: boolean) => void;
+        onShowActivity?: () => void;
+        onEditCategory?: () => void;
+        onBudgetAction?: (month: string, action: string, args: unknown) => void;
       };
     }
   | {
@@ -662,6 +669,9 @@ export type Modal =
     }
   | {
       name: 'keyboard-shortcuts';
+    }
+  | {
+      name: 'more';
     }
   | {
       name: 'goal-templates';

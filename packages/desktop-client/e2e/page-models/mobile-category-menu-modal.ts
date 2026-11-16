@@ -31,17 +31,13 @@ export class CategoryMenuModal {
   async editNotes() {
     await this.editNotesButton.click();
 
-    return new EditNotesModal(
-      this.page.getByRole('dialog', {
-        name: 'Modal dialog',
-      }),
-    );
+    return new EditNotesModal(this.page.getByRole('dialog').last());
   }
 
   async editAutomations() {
     await this.budgetAutomationsButton.click();
 
-    return this.page.getByRole('dialog', { name: 'Modal dialog' });
+    return this.page.getByRole('dialog').last();
   }
 
   async delete() {

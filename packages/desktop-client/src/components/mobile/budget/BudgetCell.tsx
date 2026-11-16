@@ -1,19 +1,21 @@
 import { useCallback } from 'react';
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
+import { theme } from '@actual-app/components/theme';
+import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
 import type { CategoryEntity } from '@actual-app/core/types/models';
 import { AutoTextSize } from 'auto-text-size';
 
-import { makeAmountGrey } from '#components/budget/util';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { CellValue } from '#components/spreadsheet/CellValue';
 import { useFormat } from '#hooks/useFormat';
+import type { FormatType } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useNotes } from '#hooks/useNotes';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -22,13 +24,23 @@ import { pushModal } from '#modals/modalsSlice';
 import { useDispatch } from '#redux';
 import type { SheetFields } from '#spreadsheet';
 
-import { getColumnWidth, PILL_STYLE } from './BudgetTable';
+import { AMOUNT_FONT, CELL_BUTTON_STYLE, FitAmountColumn } from './BudgetTable';
 
 type BudgetCellProps<
   SheetFieldName extends SheetFields<'envelope-budget' | 'tracking-budget'>,
-> = ComponentPropsWithoutRef<
-  typeof CellValue<'envelope-budget' | 'tracking-budget', SheetFieldName>
+> = Omit<
+  ComponentPropsWithoutRef<
+    typeof CellValue<'envelope-budget' | 'tracking-budget', SheetFieldName>
+  >,
+  'children'
 > & {
+  // Replaces the default cell button; onPress opens the budget menu
+  children?: (props: {
+    type?: FormatType;
+    name: string;
+    value: number;
+    onPress: () => void;
+  }) => ReactNode;
   category: CategoryEntity;
   month: string;
   onBudgetAction: (month: string, action: string, args: unknown) => void;
@@ -46,7 +58,6 @@ export function BudgetCell<
 }: BudgetCellProps<SheetFieldName>) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const columnWidth = getColumnWidth();
   const dispatch = useDispatch();
   const format = useFormat();
   const { showUndoNotification } = useUndo();
@@ -185,36 +196,39 @@ export function BudgetCell<
           type,
           name,
           value,
+          onPress: onOpenCategoryBudgetMenu,
         }) || (
           <Button
             variant="bare"
             style={{
-              ...PILL_STYLE,
-              maxWidth: columnWidth,
-              ...makeAmountGrey(value),
+              ...CELL_BUTTON_STYLE,
+              // Secondary to the Balance pill beside it, still 4.5:1
+              color: theme.pageTextLight,
             }}
             onPress={onOpenCategoryBudgetMenu}
             aria-label={t('Open budget menu for {{categoryName}} category', {
               categoryName: category.name,
             })}
           >
-            <PrivacyFilter>
-              <AutoTextSize
-                key={value}
-                as={Text}
-                minFontSizePx={6}
-                maxFontSizePx={12}
-                mode="oneline"
-                style={{
-                  ...styles.tnum,
-                  maxWidth: columnWidth,
-                  textAlign: 'right',
-                  fontSize: 12,
-                }}
-              >
-                {format(value, type)}
-              </AutoTextSize>
-            </PrivacyFilter>
+            <View>
+              <FitAmountColumn column={0} text={format(value, type)} />
+              <PrivacyFilter>
+                <AutoTextSize
+                  key={value}
+                  as={Text}
+                  {...AMOUNT_FONT}
+                  mode="oneline"
+                  style={{
+                    ...styles.tnum,
+                    textAlign: 'right',
+                    fontSize: 15,
+                    fontWeight: 500,
+                  }}
+                >
+                  {format(value, type)}
+                </AutoTextSize>
+              </PrivacyFilter>
+            </View>
           </Button>
         )
       }

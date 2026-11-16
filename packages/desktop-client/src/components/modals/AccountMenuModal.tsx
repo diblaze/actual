@@ -107,15 +107,7 @@ export function AccountMenuModal({
   }
 
   return (
-    <Modal
-      name="account-menu"
-      onClose={onClose}
-      containerProps={{
-        style: {
-          height: '45vh',
-        },
-      }}
-    >
+    <Modal name="account-menu" onClose={onClose}>
       {({ state }) => (
         <>
           <ModalHeader

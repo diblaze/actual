@@ -83,3 +83,42 @@ test('calculator backspace supports tap, hold and touch cancellation', async ({
     await page.close();
   }
 });
+
+test('budget sheet stays above the calculator keypad', async ({ browser }) => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    await page.goto('/');
+    await new ConfigurationPage(page).createDemoFile();
+    const navigation = new MobileNavigation(page);
+    const settings = await navigation.goToSettingsPage();
+    await settings.enableExperimentalFeature('Mobile calculator');
+    const budgetPage = await navigation.goToBudgetPage();
+    const categoryName = await budgetPage.getCategoryNameForRow(0);
+    const menu = await budgetPage.openBudgetMenu(categoryName);
+    await menu.budgetAmountInput.click();
+
+    // Closed keypads stay mounted below the screen; the open one is in view
+    const keypadTop = async () => {
+      const tops = await Promise.all(
+        (await page.getByRole('button', { name: 'AC' }).all()).map(
+          async key => (await key.boundingBox())?.y ?? Infinity,
+        ),
+      );
+      return Math.min(...tops);
+    };
+    await expect.poll(keypadTop).toBeLessThan(844);
+    await expect
+      .poll(async () => {
+        const amount = await menu.budgetAmountInput.boundingBox();
+        return !!amount && amount.y + amount.height <= (await keypadTop());
+      })
+      .toBe(true);
+    await expect(menu.heading).toBeInViewport();
+  } finally {
+    await page.close();
+  }
+});

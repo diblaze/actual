@@ -3,9 +3,11 @@ import type { CSSProperties } from 'react';
 import { mergeProps } from 'react-aria';
 import type { ListBoxItemRenderProps } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
 import { SvgSplit } from '@actual-app/components/icons/v0';
+import { SvgExclamationSolid } from '@actual-app/components/icons/v1';
 import {
   SvgArrowsSynchronize,
   SvgCalendar3,
@@ -16,7 +18,9 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 import { isPreviewId } from '@actual-app/core/shared/transactions';
 import { integerToCurrency } from '@actual-app/core/shared/util';
 import type { IntegerAmount } from '@actual-app/core/shared/util';
@@ -32,17 +36,20 @@ import {
 
 import { makeAmountFullStyle } from '#components/budget/util';
 import { TransferDirectionIcon } from '#components/common/TransferDirectionIcon';
+import { ALL_ACCOUNTS_ID } from '#components/mobile/accounts/AccountsPage';
 import { useAccount } from '#hooks/useAccount';
 import { useCachedSchedules } from '#hooks/useCachedSchedules';
 import { useCategories } from '#hooks/useCategories';
 import { useDisplayPayee } from '#hooks/useDisplayPayee';
+import { useLocale } from '#hooks/useLocale';
 import { usePayee } from '#hooks/usePayee';
 import { NotesTagFormatter } from '#notes/NotesTagFormatter';
 import { useSelector } from '#redux';
 
-import { lookupName, Status } from './TransactionEdit';
+import { formatSignedAmount, lookupName, Status } from './TransactionEdit';
 
-export const ROW_HEIGHT = 60;
+// Payee and chip; rows grow for the imported payee and notes lines
+export const ROW_HEIGHT = 76;
 
 const getTextStyle = ({
   isPreview,
@@ -50,7 +57,7 @@ const getTextStyle = ({
   isPreview: boolean;
 }): CSSProperties => ({
   ...styles.text,
-  fontSize: 14,
+  fontSize: 16,
   ...(isPreview
     ? {
         fontStyle: 'italic',
@@ -87,12 +94,15 @@ export function TransactionListItem({
   ...itemProps
 }: TransactionListItemProps) {
   const { t } = useTranslation();
+  const locale = useLocale();
   const { data: { list: categories } = { list: [] } } = useCategories();
 
   const { data: payee } = usePayee(transaction?.payee);
   const displayPayee = useDisplayPayee({ transaction });
 
   const account = useAccount(transaction?.account || '');
+  // Rows name their account on the all-accounts list only
+  const showAccount = useParams().id === ALL_ACCOUNTS_ID;
   const transferAccount = useAccount(payee?.transfer_acct || '');
   const isPreview = isPreviewId(transaction?.id || '');
   const { schedules = [] } = useCachedSchedules();
@@ -154,6 +164,16 @@ export function TransactionListItem({
 
   const prettyCategory = specialCategory || categoryName;
   const textStyle = getTextStyle({ isPreview });
+  const rowBackground = itemProps.isSelected
+    ? theme.accentSubtleBackground
+    : isPreview
+      ? theme.tableRowHeaderBackground
+      : theme.cardBackground;
+  // The bank's own text for the payee, when it says something else
+  const importedPayee =
+    transaction.imported_payee && transaction.imported_payee !== displayPayee
+      ? transaction.imported_payee
+      : null;
 
   return (
     <View
@@ -161,26 +181,10 @@ export function TransactionListItem({
         flexDirection: 'row',
         alignItems: 'stretch',
         width: '100%',
-        height: ROW_HEIGHT,
+        minHeight: ROW_HEIGHT,
         overflow: 'hidden',
-        ...(itemProps.isSelected
-          ? {
-              borderWidth: '0 0 0 4px',
-              borderColor: theme.mobileTransactionSelected,
-              borderStyle: 'solid',
-            }
-          : {
-              borderWidth: '0 0 1px 0',
-              borderColor: theme.tableBorder,
-              borderStyle: 'solid',
-            }),
-        ...(isPreview
-          ? {
-              backgroundColor: theme.tableRowHeaderBackground,
-            }
-          : {
-              backgroundColor: theme.tableBackground,
-            }),
+        borderBottom: `1px solid ${theme.tableBorder}`,
+        backgroundColor: rowBackground,
       }}
     >
       <PressResponder {...mergeProps(pressProps, longPressProps)}>
@@ -193,25 +197,20 @@ export function TransactionListItem({
             borderRadius: 0,
             borderWidth: 0,
             ...(isReconciling && { paddingRight: 0 }),
-            ...(isPreview
-              ? {
-                  backgroundColor: theme.tableRowHeaderBackground,
-                }
-              : {
-                  backgroundColor: theme.tableBackground,
-                }),
+            backgroundColor: rowBackground,
           }}
         >
           <View
             style={{
               flexDirection: 'row',
               flex: 1,
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'space-between',
-              padding: isReconciling ? '0 0 0 4px' : '0 4px',
+              gap: spacing.sm,
+              padding: `${spacing.md}px ${isReconciling ? 0 : spacing.xs}px ${spacing.md}px ${spacing.xs}px`,
             }}
           >
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <PayeeIcons
                   transaction={transaction}
@@ -220,7 +219,7 @@ export function TransactionListItem({
                 <TextOneLine
                   style={{
                     ...textStyle,
-                    fontWeight: isAdded ? '600' : '400',
+                    fontWeight: isAdded ? 700 : 600,
                     ...(!displayPayee && !isPreview
                       ? {
                           color: theme.pageTextLight,
@@ -233,94 +232,148 @@ export function TransactionListItem({
                 </TextOneLine>
               </View>
               {isPreview ? (
-                <Status status={previewStatus} isSplit={isParent || isChild} />
-              ) : (
                 <View
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    marginTop: 3,
+                    gap: spacing.sm,
+                    marginTop: spacing.xxs,
                   }}
                 >
-                  {!isReconciling &&
-                    (isReconciled ? (
-                      <SvgLockClosed
-                        style={{
-                          width: 11,
-                          height: 11,
-                          color: theme.noticeTextLight,
-                          marginRight: 5,
-                        }}
-                      />
-                    ) : (
-                      <SvgCheckCircle1
-                        style={{
-                          width: 11,
-                          height: 11,
-                          color: isCleared
-                            ? theme.noticeTextLight
-                            : theme.pageTextSubdued,
-                          marginRight: 5,
-                        }}
-                      />
-                    ))}
-                  {(isParent || isChild) && (
-                    <SvgSplit
-                      style={{
-                        width: 12,
-                        height: 12,
-                        marginRight: 5,
-                      }}
+                  <Status
+                    status={previewStatus}
+                    isSplit={isParent || isChild}
+                  />
+                  <Text
+                    style={{ ...styles.smallText, color: theme.pageTextLight }}
+                  >
+                    {monthUtils.format(transaction.date, 'MMM d', locale)}
+                  </Text>
+                </View>
+              ) : (
+                <View
+                  data-testid="category-chip"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    alignSelf: 'flex-start',
+                    maxWidth: '100%',
+                    gap: spacing.xs,
+                    padding: `${spacing.xxs}px ${spacing.sm}px`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    ...(prettyCategory
+                      ? {
+                          fontWeight: 500,
+                          color: theme.pillText,
+                          backgroundColor: theme.pillBackground,
+                          fontStyle: specialCategory ? 'italic' : undefined,
+                        }
+                      : {
+                          fontWeight: 600,
+                          color: theme.balanceWarningText,
+                          backgroundColor: theme.balanceWarningBackground,
+                        }),
+                  }}
+                >
+                  {!prettyCategory && (
+                    <SvgExclamationSolid
+                      aria-hidden
+                      style={{ width: 12, height: 12, flexShrink: 0 }}
                     />
                   )}
-                  <TextOneLine
-                    style={{
-                      fontSize: 11,
-                      marginTop: 1,
-                      fontWeight: '400',
-                      color: prettyCategory
-                        ? theme.tableText
-                        : theme.menuItemTextSelected,
-                      fontStyle:
-                        specialCategory || !prettyCategory
-                          ? 'italic'
-                          : undefined,
-                      textAlign: 'left',
-                    }}
-                  >
+                  {(isParent || isChild) && (
+                    <SvgSplit
+                      aria-hidden
+                      style={{ width: 12, height: 12, flexShrink: 0 }}
+                    />
+                  )}
+                  <TextOneLine>
                     {prettyCategory || t('Uncategorized')}
                   </TextOneLine>
                 </View>
               )}
+              {importedPayee && (
+                <TextOneLine
+                  style={{
+                    fontSize: 13,
+                    letterSpacing: 0.2,
+                    color: theme.pageTextLight,
+                    textAlign: 'left',
+                  }}
+                >
+                  {importedPayee}
+                </TextOneLine>
+              )}
               {displayedNotes && (
                 <TextOneLine
                   style={{
-                    fontSize: 11,
-                    marginTop: 4,
+                    fontSize: 13,
                     fontWeight: '400',
                     color: theme.tableText,
                     textAlign: 'left',
-                    opacity: 0.85,
                   }}
                 >
                   <NotesTagFormatter notes={displayedNotes} />
                 </TextOneLine>
               )}
             </View>
-            <View style={{ justifyContent: 'center', alignItems: 'flex-end' }}>
-              <Text
+            <View style={{ alignItems: 'flex-end', gap: spacing.xs }}>
+              <View
                 style={{
-                  ...styles.tnum,
-                  ...makeAmountFullStyle(amount, {
-                    positiveColor: theme.tableText,
-                    negativeColor: theme.tableText,
-                    zeroColor: theme.numberNeutral,
-                  }),
-                  ...textStyle,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.xs,
                 }}
               >
-                {integerToCurrency(amount)}
-              </Text>
+                <Text
+                  style={{
+                    ...styles.tnum,
+                    ...makeAmountFullStyle(amount, {
+                      positiveColor: theme.tableText,
+                      negativeColor: theme.tableText,
+                      zeroColor: theme.numberNeutral,
+                    }),
+                    ...textStyle,
+                    fontWeight: 700,
+                  }}
+                >
+                  {formatSignedAmount(amount)}
+                </Text>
+                {!isPreview &&
+                  !isReconciling &&
+                  (isReconciled ? (
+                    <SvgLockClosed
+                      role="img"
+                      aria-label={t('Reconciled')}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        color: theme.noticeTextLight,
+                      }}
+                    />
+                  ) : (
+                    <SvgCheckCircle1
+                      {...(isCleared
+                        ? { role: 'img', 'aria-label': t('Cleared') }
+                        : { 'aria-hidden': true })}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        color: isCleared
+                          ? theme.noticeTextLight
+                          : theme.pageTextSubdued,
+                      }}
+                    />
+                  ))}
+              </View>
+              {showAccount && account && (
+                <TextOneLine
+                  style={{ fontSize: 14, color: theme.pageTextLight }}
+                >
+                  {account.name}
+                </TextOneLine>
+              )}
               {showRunningBalance && runningBalance !== undefined && (
                 <Text
                   style={{

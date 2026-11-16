@@ -359,6 +359,8 @@ export type PayeeAutocompleteProps = ComponentProps<
   accounts?: AccountEntity[];
   payees?: PayeeEntity[];
   nearbyPayees?: NearbyPayeeEntity[];
+  // Start on the transfer payees only, without nearby payees
+  transferOnly?: boolean;
 };
 
 export function PayeeAutocomplete({
@@ -379,6 +381,7 @@ export function PayeeAutocomplete({
   accounts,
   payees,
   nearbyPayees,
+  transferOnly = false,
   ...props
 }: PayeeAutocompleteProps) {
   const { t } = useTranslation();
@@ -394,7 +397,9 @@ export function PayeeAutocomplete({
   const createPayeeMutation = useCreatePayeeMutation();
   const deletePayeeLocationMutation = useDeletePayeeLocationMutation();
 
-  if (!nearbyPayees) {
+  if (transferOnly) {
+    nearbyPayees = [];
+  } else if (!nearbyPayees) {
     nearbyPayees = retrievedNearbyPayees;
   }
 
@@ -403,7 +408,7 @@ export function PayeeAutocomplete({
     accounts = cachedAccounts;
   }
 
-  const [focusTransferPayees, setFocusTransferPayees] = useState(false);
+  const [focusTransferPayees, setFocusTransferPayees] = useState(transferOnly);
   const [rawPayee, setRawPayee] = useState('');
   const hasPayeeInput = !!rawPayee;
   const payeeSuggestions: PayeeAutocompleteItem[] = useMemo(() => {
@@ -713,7 +718,7 @@ type PayeeItemProps = {
   embedded?: boolean;
 };
 
-function PayeeItem({
+export function PayeeItem({
   item,
   className,
   highlighted,

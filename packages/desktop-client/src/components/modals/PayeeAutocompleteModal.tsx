@@ -3,10 +3,17 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
+import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 
-import { PayeeAutocomplete } from '#components/autocomplete/PayeeAutocomplete';
+import { ItemHeader } from '#components/autocomplete/ItemHeader';
+import {
+  CreatePayeeButton,
+  PayeeAutocomplete,
+  PayeeItem,
+} from '#components/autocomplete/PayeeAutocomplete';
 import {
   Modal,
   ModalCloseButton,
@@ -18,6 +25,8 @@ import { useNavigate } from '#hooks/useNavigate';
 import { usePayees } from '#hooks/usePayees';
 import type { Modal as ModalType } from '#modals/modalsSlice';
 
+const rowStyle = { height: 44, minHeight: 44 };
+
 type PayeeAutocompleteModalProps = Extract<
   ModalType,
   { name: 'payee-autocomplete' }
@@ -26,6 +35,7 @@ type PayeeAutocompleteModalProps = Extract<
 export function PayeeAutocompleteModal({
   onSelect,
   showNoneOption,
+  transferOnly = false,
   onClose,
 }: PayeeAutocompleteModalProps) {
   const { t } = useTranslation();
@@ -44,12 +54,11 @@ export function PayeeAutocompleteModal({
     <Modal
       name="payee-autocomplete"
       noAnimation={!isNarrowWidth}
+      fullScreenOnNarrow
       onClose={onClose}
       containerProps={{
         style: {
-          height: isNarrowWidth
-            ? 'calc(var(--visual-viewport-height) * 0.85)'
-            : 275,
+          height: 275,
           backgroundColor: theme.menuAutoCompleteBackground,
         },
       }}
@@ -83,8 +92,40 @@ export function PayeeAutocompleteModal({
                 onClose={() => state.close()}
                 onManagePayees={onManagePayees}
                 showManagePayees={!isNarrowWidth}
-                showMakeTransfer={!isNarrowWidth}
+                showMakeTransfer={!isNarrowWidth && !transferOnly}
+                transferOnly={transferOnly}
                 {...defaultAutocompleteProps}
+                {...(isNarrowWidth && {
+                  renderCreatePayeeButton: props => (
+                    <CreatePayeeButton
+                      {...props}
+                      style={{
+                        ...rowStyle,
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                      }}
+                    />
+                  ),
+                  renderPayeeItemGroupHeader: props => (
+                    <ItemHeader
+                      {...props}
+                      type="payee"
+                      role="heading"
+                      aria-level={3}
+                      style={{
+                        ...styles.smallText,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        paddingTop: spacing.md,
+                        paddingBottom: spacing.xs,
+                      }}
+                    />
+                  ),
+                  renderPayeeItem: props => (
+                    <PayeeItem {...props} style={rowStyle} />
+                  ),
+                })}
                 onSelect={onSelect}
                 value={null}
               />

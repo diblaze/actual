@@ -27,12 +27,7 @@ export function NotesModal({ id, name, onSave }: NotesModalProps) {
   }
 
   return (
-    <Modal
-      name="notes"
-      containerProps={{
-        style: { height: '50vh' },
-      }}
-    >
+    <Modal name="notes">
       {({ state }) => (
         <>
           <ModalHeader
@@ -53,6 +48,8 @@ export function NotesModal({ id, name, onSave }: NotesModalProps) {
                 borderRadius: 6,
                 flex: 1,
                 minWidth: 0,
+                // The sheet sizes to content; keep room to type
+                minHeight: 160,
               })}
               onChange={setNotes}
             />

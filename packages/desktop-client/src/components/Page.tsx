@@ -4,11 +4,13 @@ import { createPortal } from 'react-dom';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
+import type { CSSProperties as StyleObject } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
 const HEADER_HEIGHT = 50;
+const HEADER_BUTTON_SIZE = 44;
 
 type PageHeaderProps = {
   title: ReactNode;
@@ -46,6 +48,30 @@ type MobilePageHeaderProps = {
   rightContent?: ReactNode;
 };
 
+// Header actions sit in round glass groups above a large left-aligned title.
+// The 27 callers pass plain bare buttons (some with the old bar's inline
+// margin), so the group styles every button it holds.
+const headerButtonGroup: StyleObject = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  '& button': {
+    minWidth: HEADER_BUTTON_SIZE,
+    height: HEADER_BUTTON_SIZE,
+    padding: '0 12px',
+    margin: '0 !important',
+    borderRadius: HEADER_BUTTON_SIZE / 2,
+    color: theme.pageText,
+    backgroundColor: theme.glassBackground,
+    border: `1px solid ${theme.glassBorder}`,
+    backdropFilter: 'blur(24px)',
+  },
+  '& button[data-focus-visible]': {
+    outline: `2px solid ${theme.pageText}`,
+    outlineOffset: 2,
+  },
+};
+
 export function MobilePageHeader({
   title,
   style,
@@ -55,55 +81,41 @@ export function MobilePageHeader({
   return (
     <View
       style={{
-        alignItems: 'center',
-        flexDirection: 'row',
         flexShrink: 0,
-        height: HEADER_HEIGHT,
-        backgroundColor: theme.mobileHeaderBackground,
-        '& *': {
-          color: theme.mobileHeaderText,
-        },
-        '& button[data-pressed]': {
-          backgroundColor: theme.mobileHeaderTextHover,
-        },
+        gap: 6,
+        padding: '8px 16px 10px',
+        color: theme.pageText,
         ...style,
       }}
     >
-      <View
-        style={{
-          flexBasis: '25%',
-          justifyContent: 'flex-start',
-          flexDirection: 'row',
-        }}
-      >
-        {leftContent}
-      </View>
+      {(leftContent || rightContent) && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            minHeight: HEADER_BUTTON_SIZE,
+          }}
+        >
+          <View style={headerButtonGroup}>{leftContent}</View>
+          <View style={headerButtonGroup}>{rightContent}</View>
+        </View>
+      )}
       <h1
         style={{
-          textAlign: 'center',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'row',
-          flexBasis: '50%',
-          fontSize: 17,
-          fontWeight: 500,
-          overflowY: 'auto',
           display: 'flex',
+          alignItems: 'center',
           margin: 0,
           padding: 0,
+          fontSize: 34,
+          fontWeight: 800,
+          letterSpacing: -0.5,
+          lineHeight: '41px',
+          overflowWrap: 'anywhere',
         }}
       >
         {title}
       </h1>
-      <View
-        style={{
-          flexBasis: '25%',
-          justifyContent: 'flex-end',
-          flexDirection: 'row',
-        }}
-      >
-        {rightContent}
-      </View>
     </View>
   );
 }
@@ -145,7 +157,6 @@ export function MobilePageHeaderSlot({ style }: MobilePageHeaderSlotProps) {
       style={{
         flexShrink: 0,
         minHeight: HEADER_HEIGHT,
-        backgroundColor: theme.mobileHeaderBackground,
         ...style,
       }}
     />
@@ -161,13 +172,14 @@ type PageProps = {
 };
 
 export function Page({ header, style, padding, children, footer }: PageProps) {
-  const { isNarrowWidth } = useResponsive();
+  // Tablets (below 1100px) use the phone page chrome too
+  const { isWideWidth } = useResponsive();
   const mobileHeaderSlot = useContext(MobilePageHeaderSlotContext);
-  const childrenPadding = padding != null ? padding : isNarrowWidth ? 10 : 20;
+  const childrenPadding = padding != null ? padding : !isWideWidth ? 10 : 20;
 
   const headerToRender =
     typeof header === 'string' ? (
-      isNarrowWidth ? (
+      !isWideWidth ? (
         <MobilePageHeader title={header} />
       ) : (
         <PageHeader title={header} />
@@ -181,7 +193,7 @@ export function Page({ header, style, padding, children, footer }: PageProps) {
       role="main"
       style={{
         flex: 1,
-        overflowY: isNarrowWidth ? 'auto' : undefined,
+        overflowY: !isWideWidth ? 'auto' : undefined,
         padding: `0 ${childrenPadding}px`,
       }}
     >
@@ -189,12 +201,12 @@ export function Page({ header, style, padding, children, footer }: PageProps) {
     </View>
   );
 
-  if (isNarrowWidth) {
+  if (!isWideWidth) {
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: theme.mobilePageBackground,
+          backgroundColor: theme.pageBackground,
           ...style,
         }}
       >

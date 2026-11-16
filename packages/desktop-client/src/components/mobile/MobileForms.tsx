@@ -287,10 +287,12 @@ export function ToggleField({
   style,
   className,
   isDisabled = false,
+  'aria-label': ariaLabel,
 }: ToggleFieldProps) {
   return (
     <Toggle
       id={id}
+      aria-label={ariaLabel}
       isOn={isOn}
       isDisabled={isDisabled}
       onToggle={onToggle}

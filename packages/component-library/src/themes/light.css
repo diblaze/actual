@@ -7,7 +7,7 @@
   --color-pageBackgroundLineMid: var(--palette-navy100);
   --color-pageBackgroundLineBottom: var(--palette-blue150);
   --color-pageText: #272630;
-  --color-pageTextLight: var(--palette-navy500);
+  --color-pageTextLight: var(--palette-navy600);
   --color-pageTextSubdued: var(--palette-navy300);
   --color-pageTextDark: var(--palette-navy800);
   --color-pageTextPositive: var(--palette-purple600);
@@ -113,7 +113,7 @@
   --color-mobileAccountText: var(--palette-blue800);
   --color-mobileTransactionSelected: var(--palette-purple500);
 
-  --color-mobileViewTheme: var(--color-mobileHeaderBackground);
+  --color-mobileViewTheme: var(--color-pageBackground);
   --color-mobileConfigServerViewTheme: var(--palette-purple500);
 
   --color-markdownNormal: var(--palette-purple150);
@@ -259,6 +259,22 @@
   --color-calendarCellBackground: var(--palette-navy100);
 
   --color-overlayBackground: rgba(0, 0, 0, 0.3);
+
+  --color-cardElevation:
+    0 0 0 1px var(--palette-navy150), 0 1px 2px rgba(39, 38, 48, 0.06);
+  --color-floatingElevation: 0 10px 28px rgba(39, 38, 48, 0.18);
+  --color-glassBackground: rgba(255, 255, 255, 0.88);
+  --color-glassBorder: rgba(98, 125, 152, 0.18);
+  --color-accentSubtleBackground: #efe3fb;
+  --color-accentSubtleText: var(--palette-purple600);
+  --color-balancePositiveBackground: var(--palette-green150);
+  --color-balancePositiveText: #0e5c49;
+  --color-balanceWarningBackground: var(--palette-orange200);
+  --color-balanceWarningText: #5c4108;
+  --color-balanceNegativeBackground: var(--palette-red100);
+  --color-balanceNegativeText: #b81d2a;
+  --color-balanceZeroBackground: var(--palette-navy100);
+  --color-balanceZeroText: var(--palette-navy600);
 
   --color-chartQual1: var(--palette-chartQual1);
   --color-chartQual2: var(--palette-chartQual2);

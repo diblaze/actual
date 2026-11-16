@@ -1,28 +1,20 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@actual-app/components/button';
-import { Card } from '@actual-app/components/card';
-import { SvgExpandArrow } from '@actual-app/components/icons/v0';
-import { SvgCheveronRight } from '@actual-app/components/icons/v1';
-import { Label } from '@actual-app/components/label';
-import { styles } from '@actual-app/components/styles';
-import type { CSSProperties } from '@actual-app/components/styles';
-import { Text } from '@actual-app/components/text';
-import { theme } from '@actual-app/components/theme';
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { View } from '@actual-app/components/view';
-import * as monthUtils from '@actual-app/core/shared/months';
 import type { CategoryGroupEntity } from '@actual-app/core/types/models';
-import { css } from '@emotion/css';
-import { AutoTextSize } from 'auto-text-size';
 
-import { PrivacyFilter } from '#components/PrivacyFilter';
-import { CellValue } from '#components/spreadsheet/CellValue';
-import { useFormat } from '#hooks/useFormat';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
-import { getColumnWidth, ROW_HEIGHT } from './BudgetTable';
+import {
+  GROUP_CARD_STYLE,
+  GROUP_ROW_HEIGHT,
+  GroupTotal,
+  rowGrid,
+} from './BudgetTable';
+import { GroupName } from './ExpenseGroupListItem';
 import { IncomeCategoryList } from './IncomeCategoryList';
 
 type IncomeGroupProps = {
@@ -46,10 +38,6 @@ export function IncomeGroup({
   isCollapsed,
   onToggleCollapse,
 }: IncomeGroupProps) {
-  const { t } = useTranslation();
-  const columnWidth = getColumnWidth();
-  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
-
   const categories = useMemo(
     () =>
       isCollapsed(categoryGroup.id)
@@ -66,263 +54,85 @@ export function IncomeGroup({
   );
 
   return (
-    <View>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          marginTop: 50,
-          marginBottom: 5,
-          marginRight: 15,
-        }}
-      >
-        {budgetType === 'tracking' && (
-          <Label title={t('Budgeted')} style={{ width: columnWidth }} />
-        )}
-        <Label title={t('Received')} style={{ width: columnWidth }} />
-      </View>
-
-      <Card style={{ marginTop: 0 }}>
-        <IncomeGroupHeader
-          group={categoryGroup}
-          month={month}
-          onEdit={onEditCategoryGroup}
-          isCollapsed={isCollapsed}
-          onToggleCollapse={onToggleCollapse}
-        />
-        <IncomeCategoryList
-          categories={categories}
-          month={month}
-          onEditCategory={onEditCategory}
-          onBudgetAction={onBudgetAction}
-        />
-      </Card>
+    <View data-testid="category-group" style={{ marginTop: 36 }}>
+      <IncomeGroupHeader
+        group={categoryGroup}
+        onEdit={onEditCategoryGroup}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={onToggleCollapse}
+      />
+      {categories.length > 0 && (
+        <View style={GROUP_CARD_STYLE}>
+          <IncomeCategoryList
+            categories={categories}
+            month={month}
+            onEditCategory={onEditCategory}
+            onBudgetAction={onBudgetAction}
+          />
+        </View>
+      )}
     </View>
   );
 }
 
 type IncomeGroupHeaderProps = {
   group: CategoryGroupEntity;
-  month: string;
   onEdit: (id: CategoryGroupEntity['id']) => void;
   isCollapsed: (id: CategoryGroupEntity['id']) => boolean;
   onToggleCollapse: (id: CategoryGroupEntity['id']) => void;
-  style?: CSSProperties;
 };
 
+// Name and totals above the card: Budgeted (tracking only) and Received, in
+// the Budgeted and Balance columns
 function IncomeGroupHeader({
   group,
-  month,
   onEdit,
   isCollapsed,
   onToggleCollapse,
-  style,
 }: IncomeGroupHeaderProps) {
+  const { t } = useTranslation();
+  const { isMediumWidth } = useResponsive();
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
+
   return (
     <View
       data-testid="category-group-row"
-      onClick={() => onToggleCollapse(group.id)}
       style={{
-        cursor: 'pointer',
-        height: ROW_HEIGHT,
-        borderBottomWidth: 1,
-        borderColor: theme.tableBorder,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: 5,
-        paddingRight: 5,
+        ...rowGrid(isMediumWidth),
+        alignItems: 'end',
+        minHeight: GROUP_ROW_HEIGHT,
+        marginInline: 12,
+        paddingBottom: 6,
         opacity: group.hidden ? 0.5 : undefined,
-        backgroundColor: monthUtils.isCurrentMonth(month)
-          ? theme.budgetHeaderCurrentMonth
-          : theme.budgetHeaderOtherMonth,
-        ...style,
       }}
     >
-      <IncomeGroupName
+      <GroupName
         group={group}
-        onEdit={onEdit}
+        onEditCategoryGroup={onEdit}
         isCollapsed={isCollapsed}
         onToggleCollapse={onToggleCollapse}
       />
-      <IncomeGroupCells group={group} />
-    </View>
-  );
-}
-
-type IncomeGroupNameProps = {
-  group: CategoryGroupEntity;
-  onEdit: (id: CategoryGroupEntity['id']) => void;
-  isCollapsed: (id: CategoryGroupEntity['id']) => boolean;
-  onToggleCollapse: (id: CategoryGroupEntity['id']) => void;
-};
-
-function IncomeGroupName({
-  group,
-  onEdit,
-  isCollapsed,
-  onToggleCollapse,
-}: IncomeGroupNameProps) {
-  const sidebarColumnWidth = getColumnWidth({
-    isSidebar: true,
-    offset: -13.5,
-  });
-  return (
-    <View
-      style={{
-        flex: 1,
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        width: sidebarColumnWidth,
-      }}
-    >
-      <Button
-        variant="bare"
-        className={css({
-          flexShrink: 0,
-          color: theme.pageTextSubdued,
-          '&[data-pressed]': {
-            backgroundColor: 'transparent',
-          },
-          marginLeft: -5,
-        })}
-        onPress={() => onToggleCollapse(group.id)}
-      >
-        <SvgExpandArrow
-          width={8}
-          height={8}
-          style={{
-            flexShrink: 0,
-            transition: 'transform .1s',
-            transform: isCollapsed(group.id) ? 'rotate(-90deg)' : '',
-          }}
+      {budgetType === 'tracking' ? (
+        <GroupTotal
+          label={t('Budgeted')}
+          testId="group-budgeted"
+          column={0}
+          binding={trackingBudget.groupBudgeted(group.id)}
         />
-      </Button>
-      <Button
-        variant="bare"
-        style={{
-          maxWidth: sidebarColumnWidth,
-        }}
-        onPress={() => onEdit(group.id)}
-      >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-          }}
-        >
-          <Text
-            style={{
-              ...styles.lineClamp(2),
-              width: sidebarColumnWidth,
-              textAlign: 'left',
-              ...styles.smallText,
-            }}
-            data-testid="category-group-name"
-          >
-            {group.name}
-          </Text>
-          <SvgCheveronRight
-            style={{ flexShrink: 0, color: theme.tableTextSubdued }}
-            width={14}
-            height={14}
-          />
-        </View>
-      </Button>
-    </View>
-  );
-}
-
-type IncomeGroupCellsProps = {
-  group: CategoryGroupEntity;
-};
-
-function IncomeGroupCells({ group }: IncomeGroupCellsProps) {
-  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
-  const format = useFormat();
-
-  const budgeted =
-    budgetType === 'tracking' ? trackingBudget.groupBudgeted(group.id) : null;
-
-  const balance =
-    budgetType === 'tracking'
-      ? trackingBudget.groupSumAmount(group.id)
-      : envelopeBudget.groupSumAmount(group.id);
-
-  const columnWidth = getColumnWidth();
-
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        paddingRight: 5,
-      }}
-    >
-      {budgeted && (
-        <CellValue<'envelope-budget' | 'tracking-budget', 'group-budget'>
-          binding={budgeted}
-          type="financial"
-        >
-          {({ type, value }) => (
-            <View>
-              <PrivacyFilter>
-                <AutoTextSize
-                  key={value}
-                  as={Text}
-                  minFontSizePx={6}
-                  maxFontSizePx={12}
-                  mode="oneline"
-                  style={{
-                    ...styles.tnum,
-                    width: columnWidth,
-                    justifyContent: 'center',
-                    alignItems: 'flex-end',
-                    paddingLeft: 5,
-                    textAlign: 'right',
-                    fontSize: 12,
-                    fontWeight: '500',
-                  }}
-                >
-                  {format(value, type)}
-                </AutoTextSize>
-              </PrivacyFilter>
-            </View>
-          )}
-        </CellValue>
+      ) : (
+        <View />
       )}
-      <CellValue<'envelope-budget' | 'tracking-budget', 'group-sum-amount'>
-        binding={balance}
-        type="financial"
-      >
-        {({ type, value }) => (
-          <View>
-            <PrivacyFilter>
-              <AutoTextSize
-                key={value}
-                as={Text}
-                minFontSizePx={6}
-                maxFontSizePx={12}
-                mode="oneline"
-                style={{
-                  ...styles.tnum,
-                  width: columnWidth,
-                  justifyContent: 'center',
-                  alignItems: 'flex-end',
-                  paddingLeft: 5,
-                  textAlign: 'right',
-                  fontSize: 12,
-                  fontWeight: '500',
-                }}
-              >
-                {format(value, type)}
-              </AutoTextSize>
-            </PrivacyFilter>
-          </View>
-        )}
-      </CellValue>
+      {isMediumWidth && <View />}
+      <GroupTotal
+        label={t('Received')}
+        testId="group-balance"
+        column={2}
+        binding={
+          budgetType === 'tracking'
+            ? trackingBudget.groupSumAmount(group.id)
+            : envelopeBudget.groupSumAmount(group.id)
+        }
+      />
     </View>
   );
 }

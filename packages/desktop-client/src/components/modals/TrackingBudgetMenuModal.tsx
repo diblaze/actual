@@ -26,7 +26,6 @@ import {
 import { AmountInput } from '#components/mobile/transactions/AmountInput';
 import { Notes } from '#components/Notes';
 import { useCategory } from '#hooks/useCategory';
-import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useNotes } from '#hooks/useNotes';
 import type { Modal as ModalType } from '#modals/modalsSlice';
 import { trackingBudget } from '#spreadsheet/bindings';
@@ -64,7 +63,6 @@ export function TrackingBudgetMenuModal({
     trackingBudget.catBudgeted(categoryId),
   );
   const { data: category } = useCategory(categoryId);
-  const mobileCalculatorEnabled = useFeatureFlag('mobileCalculator');
   const notesId = category ? `${category.id}-${month}` : '';
   const originalNotes = useNotes(notesId) ?? '';
 
@@ -89,12 +87,7 @@ export function TrackingBudgetMenuModal({
   }
 
   return (
-    <Modal
-      name="tracking-budget-menu"
-      wrapperProps={{
-        style: mobileCalculatorEnabled ? { paddingBottom: '30vh' } : undefined,
-      }}
-    >
+    <Modal name="tracking-budget-menu">
       {({ state }) => (
         <>
           <ModalHeader

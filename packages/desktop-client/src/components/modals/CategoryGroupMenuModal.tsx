@@ -131,15 +131,7 @@ export function CategoryGroupMenuModal({
   };
 
   return (
-    <Modal
-      name="category-group-menu"
-      onClose={onClose}
-      containerProps={{
-        style: {
-          height: '45vh',
-        },
-      }}
-    >
+    <Modal name="category-group-menu" onClose={onClose}>
       {({ state }) => (
         <>
           <ModalHeader

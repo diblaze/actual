@@ -19,13 +19,12 @@ import { useCategoryScheduleGoalTemplateIndicator } from '#hooks/useCategorySche
 import { useFormat } from '#hooks/useFormat';
 import type { Binding } from '#spreadsheet';
 
-import { getColumnWidth, PILL_STYLE } from './BudgetTable';
+import { AMOUNT_FONT, CELL_BUTTON_STYLE, FitAmountColumn } from './BudgetTable';
 
 type SpentCellProps = {
   binding: Binding<'envelope-budget' | 'tracking-budget', 'sum-amount'>;
   category: CategoryEntity;
   month: string;
-  show3Columns?: boolean;
   onPress?: () => void;
 };
 
@@ -33,14 +32,10 @@ export function SpentCell({
   binding,
   category,
   month,
-  show3Columns,
   onPress,
 }: SpentCellProps) {
   const { t } = useTranslation();
   const format = useFormat();
-  const columnWidth = getColumnWidth({
-    show3Columns,
-  });
 
   const { schedule, scheduleStatus, isScheduleRecurring } =
     useCategoryScheduleGoalTemplateIndicator({
@@ -60,32 +55,33 @@ export function SpentCell({
         <>
           <Button
             variant="bare"
-            style={{
-              ...PILL_STYLE,
-            }}
+            style={{ ...CELL_BUTTON_STYLE, color: theme.tableText }}
             onPress={onPress}
             aria-label={t('Show transactions for {{categoryName}} category', {
               categoryName: category.name,
             })}
           >
-            <PrivacyFilter>
-              <AutoTextSize
-                key={value}
-                as={Text}
-                minFontSizePx={6}
-                maxFontSizePx={12}
-                mode="oneline"
-                style={{
-                  ...styles.tnum,
-                  ...makeAmountGrey(value),
-                  maxWidth: columnWidth,
-                  textAlign: 'right',
-                  fontSize: 12,
-                }}
-              >
-                {format(value, type)}
-              </AutoTextSize>
-            </PrivacyFilter>
+            <View>
+              <FitAmountColumn column={1} text={format(value, type)} />
+              <PrivacyFilter>
+                <AutoTextSize
+                  key={value}
+                  as={Text}
+                  {...AMOUNT_FONT}
+                  mode="oneline"
+                  style={{
+                    ...styles.tnum,
+                    ...(makeAmountGrey(value) && {
+                      color: theme.tableHeaderText,
+                    }),
+                    textAlign: 'right',
+                    fontSize: 15,
+                  }}
+                >
+                  {format(value, type)}
+                </AutoTextSize>
+              </PrivacyFilter>
+            </View>
           </Button>
           {schedule && scheduleStatus && (
             <View

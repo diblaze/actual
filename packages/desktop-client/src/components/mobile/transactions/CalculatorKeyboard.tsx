@@ -9,6 +9,8 @@ import { View } from '@actual-app/components/view';
 
 import { CalculatorButtons } from '#components/common/CalculatorButtons';
 
+const KEYBOARD_HEIGHT = 'clamp(320px, 50dvh, 400px)';
+
 export const CalculatorKeyboard = memo(function CalculatorAmountInput({
   inputRef,
   header,
@@ -51,6 +53,16 @@ export const CalculatorKeyboard = memo(function CalculatorAmountInput({
     setIsOpenDebounced(isOpen);
   }, [isOpen, isOpenDebounced, initialTransitionDelay]);
 
+  // Bottom sheets read this to sit above the keypad instead of under it
+  useEffect(() => {
+    if (!isOpenDebounced) return;
+    const root = document.documentElement;
+    root.style.setProperty('--calculator-keyboard-height', KEYBOARD_HEIGHT);
+    return () => {
+      root.style.removeProperty('--calculator-keyboard-height');
+    };
+  }, [isOpenDebounced]);
+
   return (
     <View
       style={{
@@ -60,9 +72,7 @@ export const CalculatorKeyboard = memo(function CalculatorAmountInput({
         bottom: 0,
         display: 'flex',
         gap: 6,
-        height: '50dvh',
-        maxHeight: 400,
-        minHeight: 320,
+        height: KEYBOARD_HEIGHT,
         left: 0,
         overflow: 'visible',
         position: 'fixed',

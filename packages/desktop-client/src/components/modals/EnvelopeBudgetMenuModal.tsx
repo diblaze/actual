@@ -26,7 +26,6 @@ import {
 import { AmountInput } from '#components/mobile/transactions/AmountInput';
 import { Notes } from '#components/Notes';
 import { useCategory } from '#hooks/useCategory';
-import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useNotes } from '#hooks/useNotes';
 import type { Modal as ModalType } from '#modals/modalsSlice';
 import { envelopeBudget } from '#spreadsheet/bindings';
@@ -64,7 +63,6 @@ export function EnvelopeBudgetMenuModal({
     envelopeBudget.catBudgeted(categoryId),
   );
   const { data: category } = useCategory(categoryId);
-  const mobileCalculatorEnabled = useFeatureFlag('mobileCalculator');
 
   const notesId = category ? `${category.id}-${month}` : '';
   const originalNotes = useNotes(notesId) ?? '';
@@ -89,12 +87,7 @@ export function EnvelopeBudgetMenuModal({
   }
 
   return (
-    <Modal
-      name="envelope-budget-menu"
-      wrapperProps={{
-        style: mobileCalculatorEnabled ? { paddingBottom: '30vh' } : undefined,
-      }}
-    >
+    <Modal name="envelope-budget-menu">
       {({ state }) => (
         <>
           <ModalHeader

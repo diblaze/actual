@@ -90,13 +90,7 @@ export function CategoryMenuModal({
   };
 
   return (
-    <Modal
-      name="category-menu"
-      onClose={onClose}
-      containerProps={{
-        style: { height: '45vh' },
-      }}
-    >
+    <Modal name="category-menu" onClose={onClose}>
       {({ state }) => (
         <>
           <ModalHeader

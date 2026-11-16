@@ -66,12 +66,7 @@ export function EnvelopeBudgetMonthMenuModal({
   const { t } = useTranslation();
 
   return (
-    <Modal
-      name="envelope-budget-month-menu"
-      containerProps={{
-        style: { height: '50vh' },
-      }}
-    >
+    <Modal name="envelope-budget-month-menu">
       {({ state }) => (
         <>
           <ModalHeader
