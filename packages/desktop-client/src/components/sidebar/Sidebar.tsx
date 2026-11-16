@@ -12,14 +12,12 @@ import { Accounts } from './Accounts';
 import { BudgetName } from './BudgetName';
 import { PrimaryButtons } from './PrimaryButtons';
 import { SecondaryButtons } from './SecondaryButtons';
-import { useSidebar } from './SidebarProvider';
 import { SidebarShell } from './SidebarShell';
 import { ToggleButton } from './ToggleButton';
 
 export function Sidebar() {
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const sidebar = useSidebar();
   const [isFloating = false, setFloatingSidebarPref] =
     useGlobalPref('floatingSidebar');
 
@@ -34,9 +32,7 @@ export function Sidebar() {
   return (
     <SidebarShell>
       <BudgetName>
-        {!sidebar.alwaysFloats && (
-          <ToggleButton isFloating={isFloating} onFloat={onFloat} />
-        )}
+        <ToggleButton isFloating={isFloating} onFloat={onFloat} />
       </BudgetName>
 
       <View

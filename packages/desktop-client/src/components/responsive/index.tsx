@@ -19,11 +19,9 @@ export function NarrowAlternate({
 }: {
   name: keyof typeof WideComponents & keyof typeof NarrowComponents;
 }) {
-  const { isNarrowWidth } = useResponsive();
+  // Phones and tablets (below 1100px) get the phone pages
+  const { isWideWidth } = useResponsive();
   return (
-    <LoadComponent
-      name={name}
-      importer={isNarrowWidth ? loadNarrow : loadWide}
-    />
+    <LoadComponent name={name} importer={isWideWidth ? loadWide : loadNarrow} />
   );
 }

@@ -2,15 +2,12 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 
-import { useResponsive } from '@actual-app/components/hooks/useResponsive';
-
 import { useGlobalPref } from '#hooks/useGlobalPref';
 
 type SidebarContextValue = {
   hidden: boolean;
   setHidden: Dispatch<SetStateAction<boolean>>;
   floating: boolean;
-  alwaysFloats: boolean;
 };
 
 const SidebarContext = createContext<SidebarContextValue>(null);
@@ -22,13 +19,10 @@ type SidebarProviderProps = {
 export function SidebarProvider({ children }: SidebarProviderProps) {
   const [floatingSidebar] = useGlobalPref('floatingSidebar');
   const [hidden, setHidden] = useState(true);
-  const { width } = useResponsive();
-  const alwaysFloats = width < 668;
-  const floating = floatingSidebar || alwaysFloats;
 
   return (
     <SidebarContext.Provider
-      value={{ hidden, setHidden, floating, alwaysFloats }}
+      value={{ hidden, setHidden, floating: floatingSidebar }}
     >
       {children}
     </SidebarContext.Provider>
@@ -36,11 +30,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 }
 
 export function useSidebar() {
-  const { hidden, setHidden, floating, alwaysFloats } =
-    useContext(SidebarContext);
+  const { hidden, setHidden, floating } = useContext(SidebarContext);
 
   return useMemo(
-    () => ({ hidden, setHidden, floating, alwaysFloats }),
-    [hidden, setHidden, floating, alwaysFloats],
+    () => ({ hidden, setHidden, floating }),
+    [hidden, setHidden, floating],
   );
 }
