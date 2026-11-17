@@ -294,7 +294,7 @@ export function Titlebar({ style }: TitlebarProps) {
         ...style,
       }}
     >
-      {(floatingSidebar || sidebar.alwaysFloats) && (
+      {floatingSidebar && (
         <Button
           aria-label={t('Sidebar menu')}
           variant="bare"

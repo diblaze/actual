@@ -1,7 +1,9 @@
 import React, { memo, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import type {
   CategoryEntity,
@@ -234,172 +236,191 @@ export const BudgetCategories = memo<BudgetCategoriesProps>(
       }
     }
 
-    return (
-      <View
-        style={{
-          marginBottom: 10,
-          backgroundColor: theme.budgetCurrentMonth, // match budget colors, not generic table colors.
-          overflow: 'hidden',
-          boxShadow: styles.cardShadow,
-          borderRadius: '0 0 4px 4px',
-          flex: 1,
-        }}
-      >
-        {items.map((item, idx) => {
-          let content;
-          switch (item.type) {
-            case 'new-group':
-              content = (
-                <Row
-                  style={{ backgroundColor: theme.budgetHeaderCurrentMonth }}
-                >
-                  <SidebarGroup
-                    group={{ id: 'new', name: '' }}
-                    collapsed={false}
-                    editing
-                    onSave={_onSaveGroup}
-                    onHideNewGroup={onHideNewGroup}
-                    onEdit={onEditName}
-                  />
-                </Row>
-              );
-              break;
-            case 'new-category':
-              content = (
-                <Row>
-                  <SidebarCategory
-                    innerRef={null}
-                    category={{
-                      name: '',
-                      group: newCategoryForGroup!,
-                      is_income:
-                        newCategoryForGroup ===
-                        categoryGroups.find(g => g.is_income)?.id,
-                      id: 'new',
-                    }}
-                    editing
-                    onSave={_onSaveCategory}
-                    onHideNewCategory={onHideNewCategory}
-                    onEditName={onEditName!}
-                  />
-                </Row>
-              );
-              break;
+    // Each group heading starts a card holding its categories; the income
+    // header sits between the cards on the page background
+    const cards: Array<{ key: string; rows: ReactNode[] }> = [];
 
-            case 'expense-group':
-              content = (
-                <ExpenseGroup
-                  group={item.value}
-                  editingCell={editingCell}
-                  collapsed={collapsedGroupIds.includes(item.value.id)}
-                  dragState={dragState}
-                  onEditName={onEditName}
-                  onSave={_onSaveGroup}
-                  onDelete={onDeleteGroup}
-                  onDragChange={onDragChange}
-                  onReorderGroup={onReorderGroup}
-                  onReorderCategory={onReorderCategory}
-                  onToggleCollapse={onToggleCollapse}
-                  onShowNewCategory={onShowNewCategory}
-                  onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
-                  onSortCategories={onSortCategories}
-                />
-              );
-              break;
-            case 'expense-category':
-              content = (
-                <ExpenseCategory
-                  cat={item.value}
-                  categoryGroup={item.group}
-                  editingCell={editingCell}
-                  dragState={dragState}
-                  onEditName={onEditName}
-                  onEditMonth={onEditMonth}
-                  onSave={_onSaveCategory}
-                  onDelete={onDeleteCategory}
-                  onDragChange={onDragChange}
-                  onReorder={onReorderCategory}
-                  onBudgetAction={onBudgetAction}
-                  onShowActivity={onShowActivity}
-                />
-              );
-              break;
-            case 'income-separator':
-              content = (
-                <View
-                  style={{
-                    height: styles.incomeHeaderHeight,
-                    backgroundColor: theme.budgetCurrentMonth,
-                  }}
-                >
-                  <IncomeHeader onShowNewGroup={onShowNewGroup} />
-                </View>
-              );
-              break;
-            case 'income-group':
-              content = (
-                <IncomeGroup
-                  group={item.value}
-                  editingCell={editingCell}
-                  collapsed={collapsedGroupIds.includes(item.value.id)}
-                  onEditName={onEditName!}
-                  onSave={_onSaveGroup}
-                  onSortCategories={onSortCategories}
-                  onToggleCollapse={onToggleCollapse}
-                  onShowNewCategory={onShowNewCategory!}
-                />
-              );
-              break;
-            case 'income-category':
-              content = (
-                <IncomeCategory
-                  cat={item.value}
-                  editingCell={editingCell}
-                  isLast={idx === items.length - 1}
-                  onEditName={onEditName}
-                  onEditMonth={onEditMonth}
-                  onSave={_onSaveCategory}
-                  onDelete={onDeleteCategory}
-                  onDragChange={onDragChange}
-                  onReorder={onReorderCategory}
-                  onBudgetAction={onBudgetAction}
-                  onShowActivity={onShowActivity}
-                />
-              );
-              break;
-            default:
-              // @ts-expect-error Error is expected here because "item.type" is "never"
-              throw new Error('Unknown item type: ' + item.type);
-          }
-
-          const pos =
-            idx === 0 ? 'first' : idx === items.length - 1 ? 'last' : null;
-
-          return (
-            <DropHighlightPosContext.Provider
-              key={
-                'value' in item
-                  ? item.value.id
-                  : item.type === 'income-separator'
-                    ? 'separator'
-                    : idx
-              }
-              value={pos}
-            >
-              <View
-                style={
-                  dragState
-                    ? {}
-                    : {
-                        ':hover': { backgroundColor: theme.budgetCurrentMonth },
-                      }
-                }
-              >
-                {content}
-              </View>
-            </DropHighlightPosContext.Provider>
+    items.forEach((item, idx) => {
+      let content;
+      switch (item.type) {
+        case 'new-group':
+          content = (
+            <Row style={{ backgroundColor: theme.budgetHeaderCurrentMonth }}>
+              <SidebarGroup
+                group={{ id: 'new', name: '' }}
+                collapsed={false}
+                editing
+                onSave={_onSaveGroup}
+                onHideNewGroup={onHideNewGroup}
+                onEdit={onEditName}
+              />
+            </Row>
           );
-        })}
+          break;
+        case 'new-category':
+          content = (
+            <Row>
+              <SidebarCategory
+                innerRef={null}
+                category={{
+                  name: '',
+                  group: newCategoryForGroup!,
+                  is_income:
+                    newCategoryForGroup ===
+                    categoryGroups.find(g => g.is_income)?.id,
+                  id: 'new',
+                }}
+                editing
+                onSave={_onSaveCategory}
+                onHideNewCategory={onHideNewCategory}
+                onEditName={onEditName!}
+              />
+            </Row>
+          );
+          break;
+
+        case 'expense-group':
+          content = (
+            <ExpenseGroup
+              group={item.value}
+              editingCell={editingCell}
+              collapsed={collapsedGroupIds.includes(item.value.id)}
+              dragState={dragState}
+              onEditName={onEditName}
+              onSave={_onSaveGroup}
+              onDelete={onDeleteGroup}
+              onDragChange={onDragChange}
+              onReorderGroup={onReorderGroup}
+              onReorderCategory={onReorderCategory}
+              onToggleCollapse={onToggleCollapse}
+              onShowNewCategory={onShowNewCategory}
+              onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
+              onSortCategories={onSortCategories}
+            />
+          );
+          break;
+        case 'expense-category':
+          content = (
+            <ExpenseCategory
+              cat={item.value}
+              categoryGroup={item.group}
+              editingCell={editingCell}
+              dragState={dragState}
+              onEditName={onEditName}
+              onEditMonth={onEditMonth}
+              onSave={_onSaveCategory}
+              onDelete={onDeleteCategory}
+              onDragChange={onDragChange}
+              onReorder={onReorderCategory}
+              onBudgetAction={onBudgetAction}
+              onShowActivity={onShowActivity}
+            />
+          );
+          break;
+        case 'income-separator':
+          content = (
+            <View style={{ height: styles.incomeHeaderHeight }}>
+              <IncomeHeader onShowNewGroup={onShowNewGroup} />
+            </View>
+          );
+          break;
+        case 'income-group':
+          content = (
+            <IncomeGroup
+              group={item.value}
+              editingCell={editingCell}
+              collapsed={collapsedGroupIds.includes(item.value.id)}
+              onEditName={onEditName!}
+              onSave={_onSaveGroup}
+              onSortCategories={onSortCategories}
+              onToggleCollapse={onToggleCollapse}
+              onShowNewCategory={onShowNewCategory!}
+            />
+          );
+          break;
+        case 'income-category':
+          content = (
+            <IncomeCategory
+              cat={item.value}
+              editingCell={editingCell}
+              isLast={idx === items.length - 1}
+              onEditName={onEditName}
+              onEditMonth={onEditMonth}
+              onSave={_onSaveCategory}
+              onDelete={onDeleteCategory}
+              onDragChange={onDragChange}
+              onReorder={onReorderCategory}
+              onBudgetAction={onBudgetAction}
+              onShowActivity={onShowActivity}
+            />
+          );
+          break;
+        default:
+          // @ts-expect-error Error is expected here because "item.type" is "never"
+          throw new Error('Unknown item type: ' + item.type);
+      }
+
+      const pos =
+        idx === 0 ? 'first' : idx === items.length - 1 ? 'last' : null;
+      const key =
+        'value' in item
+          ? item.value.id
+          : item.type === 'income-separator'
+            ? 'separator'
+            : String(idx);
+
+      if (
+        cards.length === 0 ||
+        item.type === 'expense-group' ||
+        item.type === 'new-group' ||
+        item.type === 'income-separator' ||
+        (item.type === 'income-group' &&
+          items[idx - 1]?.type !== 'income-separator')
+      ) {
+        cards.push({
+          key,
+          rows: [],
+        });
+      }
+
+      cards[cards.length - 1].rows.push(
+        <DropHighlightPosContext.Provider key={key} value={pos}>
+          <View
+            style={
+              dragState || item.type === 'income-separator'
+                ? {}
+                : {
+                    ':hover': { backgroundColor: theme.budgetCurrentMonth },
+                  }
+            }
+          >
+            {content}
+          </View>
+        </DropHighlightPosContext.Provider>,
+      );
+    });
+
+    return (
+      <View style={{ marginBottom: 10, flex: 1, gap: spacing.md }}>
+        {cards.map(({ key, rows }, cardIdx) => (
+          <View
+            key={key}
+            style={{
+              // match budget colors, not generic table colors.
+              backgroundColor: theme.budgetCurrentMonth,
+              overflow: 'hidden',
+              boxShadow: theme.cardElevation,
+              borderRadius: radius.card,
+              // The first card continues the column header above it
+              ...(cardIdx === 0 && {
+                borderTopLeftRadius: 0,
+                borderTopRightRadius: 0,
+              }),
+            }}
+          >
+            {rows}
+          </View>
+        ))}
       </View>
     );
   },

@@ -1,4 +1,7 @@
+import { MemoryRouter } from 'react-router';
+
 import { theme } from '@actual-app/components/theme';
+import { initServer } from '@actual-app/core/platform/client/connection';
 import { setNumberFormat } from '@actual-app/core/shared/util';
 import type { CategoryEntity } from '@actual-app/core/types/models';
 import { act, render, screen, within } from '@testing-library/react';
@@ -6,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 
 import { BalanceCell } from '#components/mobile/budget/BalanceCell';
 import { MobileSheetBalanceHeader } from '#components/mobile/MobileSheetBalanceHeader';
+import { SchedulesProvider } from '#hooks/useCachedSchedules';
 import { SheetNameProvider } from '#hooks/useSheetName';
 import {
   configureTestAppStore,
@@ -16,7 +20,10 @@ import { mergeSyncedPrefs } from '#prefs/prefsSlice';
 import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
 import { BalanceWithCarryover } from './BalanceWithCarryover';
-import { IncomeCategoryMonth } from './envelope/EnvelopeBudgetComponents';
+import {
+  ExpenseCategoryMonth,
+  IncomeCategoryMonth,
+} from './envelope/EnvelopeBudgetComponents';
 
 vi.mock(
   '@actual-app/core/platform/client/connection',
@@ -335,6 +342,37 @@ describe('Goals on income categories', () => {
     expect(screen.getByText('1,200.00')).toHaveStyle({
       color: theme.budgetNumberPositive,
     });
+  });
+
+  it('draws the ring inside the desktop budget table balance pill', async () => {
+    setSheetValues();
+    const client = createTestQueryClient();
+    const store = configureTestAppStore({ queryClient: client });
+    store.dispatch(mergeSyncedPrefs({ 'flags.goalTemplatesEnabled': 'true' }));
+    initServer({ query: async () => ({ data: [], dependencies: [] }) });
+    render(
+      <TestProviders queryClient={client} store={store}>
+        <MemoryRouter>
+          <SchedulesProvider>
+            <SheetNameProvider name="budget202401">
+              <ExpenseCategoryMonth
+                category={category}
+                month="2024-01"
+                editing={false}
+                onEdit={vi.fn()}
+                onShowActivity={vi.fn()}
+                onBudgetAction={vi.fn()}
+              />
+            </SheetNameProvider>
+          </SchedulesProvider>
+        </MemoryRouter>
+      </TestProviders>,
+    );
+    await act(() => Promise.resolve());
+    const amount = screen.getByTestId('budget202401!leftover-groceries');
+    const ring = screen.getByRole('img', { name: 'Underfunded, 61% of goal' });
+    // Inside the pill, beside the amount
+    expect(ring.parentElement).toBe(amount.parentElement);
   });
 
   it.each([

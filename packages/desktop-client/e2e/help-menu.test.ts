@@ -36,9 +36,11 @@ test.describe('Help menu', () => {
     await page.getByRole('button', { name: 'Help' }).click();
     await page.getByText('Keyboard shortcuts').click();
 
-    const keyboardShortcutsModal = page.getByRole('dialog', {
-      name: 'Modal dialog',
-    });
+    // Its name follows the header title, which changes with search and
+    // category, so find it by the modal instead
+    const keyboardShortcutsModal = page
+      .getByTestId('keyboard-shortcuts-modal')
+      .getByRole('dialog');
     await expect(keyboardShortcutsModal).toBeVisible();
     await expect(page).toMatchThemeScreenshots();
 

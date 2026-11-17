@@ -88,7 +88,8 @@ test.describe('Settings', () => {
         { timeout: 1000 },
       );
     }).toPass({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Light', exact: true }).click();
+    // The theme is a segmented control (radios); Custom theme is its own
+    // button
     await page
       .getByRole('button', { name: 'Custom theme', exact: true })
       .click();
@@ -101,12 +102,8 @@ test.describe('Settings', () => {
     const indicator = page.getByRole('button', {
       name: 'Custom CSS override active — click to edit',
     });
-    let currentTheme = 'Test theme';
-    for (const nextTheme of ['Dark', 'Midnight', 'Light', 'System default']) {
-      await page
-        .getByRole('button', { name: currentTheme, exact: true })
-        .click();
-      await page.getByRole('button', { name: nextTheme, exact: true }).click();
+    for (const nextTheme of ['Dark', 'Midnight', 'Light', 'System']) {
+      await page.getByRole('radio', { name: nextTheme, exact: true }).click();
       await expect(indicator).toBeVisible();
       await expect
         .poll(() =>
@@ -117,13 +114,14 @@ test.describe('Settings', () => {
           ),
         )
         .toBe('#abcdef');
-      currentTheme = nextTheme;
     }
 
     for (const width of [1024, 800, 375]) {
       await page.setViewportSize({ width, height: 900 });
       if (width === 375) {
-        await expect(page.getByRole('navigation')).toBeVisible();
+        await expect(
+          page.getByRole('navigation', { name: 'Main' }),
+        ).toBeVisible();
       }
       await indicator.scrollIntoViewIfNeeded();
       await page.screenshot({
@@ -131,7 +129,7 @@ test.describe('Settings', () => {
       });
       const indicatorBounds = await indicator.boundingBox();
       const lightBounds = await page
-        .getByRole('button', { name: 'Light', exact: true })
+        .getByRole('radio', { name: 'Light', exact: true })
         .boundingBox();
       if (!indicatorBounds || !lightBounds) {
         throw new Error('Missing theme controls');
@@ -144,12 +142,20 @@ test.describe('Settings', () => {
       expect(overlapsLightSelector).toBe(false);
       await expect(indicator).toBeInViewport();
     }
-    await indicator.focus();
-    await page.keyboard.press('Enter');
-    await expect(
-      page.getByRole('textbox', { name: 'Custom Theme CSS' }),
-    ).toHaveValue(css);
-    await page.getByRole('textbox', { name: 'Custom Theme CSS' }).fill('');
+    // The switch to the phone layout replaces the page once its transition
+    // ends; an editor opened in the leaving page disappears, so open it again
+    const cssEditor = page.getByRole('textbox', { name: 'Custom Theme CSS' });
+    await expect(async () => {
+      if (!(await cssEditor.isVisible())) {
+        await indicator.focus();
+        await page.keyboard.press('Enter');
+      }
+      await expect(cssEditor).toHaveValue(css, { timeout: 2000 });
+      // Still open once the page settled
+      await page.waitForTimeout(500);
+      await expect(cssEditor).toBeVisible({ timeout: 100 });
+    }).toPass({ timeout: 20000 });
+    await cssEditor.fill('');
     await page.getByRole('button', { name: 'Apply', exact: true }).click();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(indicator).toBeHidden();

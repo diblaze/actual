@@ -1,6 +1,8 @@
 import React from 'react';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
+import { theme } from '@actual-app/components/theme';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { useDebounceCallback } from 'usehooks-ts';
 
@@ -18,7 +20,6 @@ export function FloatableSidebar() {
   const sidebar = useSidebar();
   const { isNarrowWidth } = useResponsive();
 
-  const sidebarShouldFloat = floatingSidebar || sidebar.alwaysFloats;
   const debouncedHideSidebar = useDebounceCallback(
     () => sidebar.setHidden(true),
     350,
@@ -27,7 +28,7 @@ export function FloatableSidebar() {
   return isNarrowWidth ? null : (
     <View
       onMouseOver={
-        sidebarShouldFloat
+        floatingSidebar
           ? e => {
               debouncedHideSidebar.cancel();
               e.stopPropagation();
@@ -35,27 +36,30 @@ export function FloatableSidebar() {
             }
           : undefined
       }
-      onMouseLeave={
-        sidebarShouldFloat ? () => debouncedHideSidebar() : undefined
-      }
+      onMouseLeave={floatingSidebar ? () => debouncedHideSidebar() : undefined}
+      data-testid="sidebar-card"
       style={{
-        position: sidebarShouldFloat ? 'absolute' : undefined,
+        // Docked, either sidebar is a card inset on the page background
+        position: floatingSidebar ? 'absolute' : undefined,
         top: 8,
-        // If not floating, the -50 takes into account the transform below
-        bottom: sidebarShouldFloat ? 8 : -50,
+        bottom: 8,
+        margin: floatingSidebar
+          ? 0
+          : `${spacing.md}px 0 ${spacing.md}px ${spacing.md}px`,
         zIndex: 1001,
-        borderRadius: sidebarShouldFloat ? '0 6px 6px 0' : 0,
+        borderRadius: floatingSidebar
+          ? `0 ${radius.card}px ${radius.card}px 0`
+          : radius.card,
         overflow: 'hidden',
-        boxShadow:
-          !sidebarShouldFloat || sidebar.hidden
+        boxShadow: !floatingSidebar
+          ? theme.cardElevation
+          : sidebar.hidden
             ? 'none'
-            : '0 15px 30px 0 rgba(0,0,0,0.25), 0 3px 15px 0 rgba(0,0,0,.5)',
-        transform: `translateY(${!sidebarShouldFloat ? -8 : 0}px)
-                      translateX(${
-                        sidebarShouldFloat && sidebar.hidden ? '-100' : '0'
-                      }%)`,
-        transition:
-          'transform .5s, box-shadow .5s, border-radius .5s, bottom .5s',
+            : theme.floatingElevation,
+        transform: `translateX(${
+          floatingSidebar && sidebar.hidden ? '-100' : '0'
+        }%)`,
+        transition: 'transform .5s, box-shadow .5s, border-radius .5s',
       }}
     >
       {newSidebarUIEnabled ? <SidebarRedesign /> : <Sidebar />}

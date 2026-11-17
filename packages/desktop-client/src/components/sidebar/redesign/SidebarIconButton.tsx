@@ -15,6 +15,7 @@ type SidebarIconButtonProps = {
   isToggledOn?: boolean;
   isDisabled?: boolean;
   onPress: ComponentProps<typeof Button>['onPress'];
+  'data-testid'?: string;
 };
 
 export function SidebarIconButton({
@@ -23,6 +24,7 @@ export function SidebarIconButton({
   isToggledOn,
   isDisabled,
   onPress,
+  'data-testid': testId,
 }: SidebarIconButtonProps) {
   return (
     <Tooltip
@@ -34,6 +36,7 @@ export function SidebarIconButton({
       <Button
         variant="bare"
         aria-label={label}
+        data-testid={testId}
         aria-pressed={isToggledOn}
         isDisabled={isDisabled}
         onPress={onPress}

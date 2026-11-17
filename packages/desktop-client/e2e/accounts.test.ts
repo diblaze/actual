@@ -339,7 +339,7 @@ test.describe('Accounts', () => {
 
     async function importRows(rows: string[]) {
       const fileChooserPromise = page.waitForEvent('filechooser');
-      await page.getByRole('button', { name: 'Import' }).click();
+      await page.getByRole('button', { name: 'Import', exact: true }).click();
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles({
         name: 'transactions.csv',
@@ -366,7 +366,7 @@ test.describe('Accounts', () => {
       ),
     );
 
-    await page.getByRole('button', { name: 'Reconcile' }).click();
+    await page.getByRole('button', { name: 'Reconcile', exact: true }).click();
     const reconcilePopover = page.locator('[data-popover]');
     await reconcilePopover.getByRole('textbox').waitFor();
     await reconcilePopover.getByRole('button', { name: 'Reconcile' }).click();
@@ -536,6 +536,119 @@ test.describe('Accounts', () => {
     });
   });
 
+  // Under Playwright the app's today is 2017-01-01. Checking holds Grocer
+  // (cleared), Cafe (uncleared) and an upcoming Phone schedule
+  test.describe('Desktop register', () => {
+    test.beforeEach(async () => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.evaluate(async () => {
+        const $send = (
+          window as unknown as {
+            $send: <T>(type: string, args?: unknown) => Promise<T>;
+          }
+        ).$send;
+        const account = await $send<string>('account-create', {
+          name: 'Checking',
+          balance: 0,
+        });
+        const payee = (name: string) => $send<string>('payee-create', { name });
+        const grocer = await payee('Grocer');
+        const cafe = await payee('Cafe');
+        const phone = await payee('Phone');
+        await $send('transactions-batch-update', {
+          added: [
+            {
+              id: crypto.randomUUID(),
+              account,
+              date: '2016-12-30',
+              amount: -2350,
+              payee: grocer,
+              cleared: true,
+            },
+            {
+              id: crypto.randomUUID(),
+              account,
+              date: '2016-12-29',
+              amount: -1000,
+              payee: cafe,
+              cleared: false,
+            },
+          ],
+        });
+        await $send('schedule/create', {
+          schedule: { name: 'Phone', posts_transaction: false },
+          conditions: [
+            { op: 'is', field: 'account', value: account },
+            { op: 'is', field: 'payee', value: phone },
+            { op: 'is', field: 'date', value: '2017-01-04' },
+            { op: 'is', field: 'amount', value: -5000 },
+          ],
+        });
+      });
+      await page.reload();
+      accountPage = await navigation.goToAccountPage('Checking');
+      await accountPage.waitFor();
+    });
+
+    test('uncleared chip', async () => {
+      const rows = accountPage.transactionTableRow;
+      await expect(rows.filter({ hasText: 'Grocer' })).toHaveCount(1);
+
+      const chip = page.getByRole('button', { name: 'Uncleared' });
+      await expect(chip).toHaveAttribute('aria-pressed', 'false');
+      await chip.click();
+      await expect(chip).toHaveAttribute('aria-pressed', 'true');
+      await expect(rows.filter({ hasText: 'Grocer' })).toHaveCount(0);
+      await expect(rows.filter({ hasText: 'Cafe' })).toHaveCount(1);
+
+      await chip.click();
+      await expect(rows.filter({ hasText: 'Grocer' })).toHaveCount(1);
+    });
+
+    test('bulk toolbar', async () => {
+      const rows = accountPage.transactionTableRow;
+      await rows.filter({ hasText: 'Grocer' }).getByTestId('select').click();
+      await rows.filter({ hasText: 'Cafe' }).getByTestId('select').click();
+
+      const toolbar = page.getByRole('toolbar', { name: 'Selected' });
+      await expect(toolbar).toContainText('2 selected');
+      await expect(toolbar).toContainText('-33.50');
+      for (const action of ['Categorize', 'Mark cleared', 'Delete']) {
+        await expect(
+          toolbar.getByRole('button', { name: action }),
+        ).toBeVisible();
+      }
+
+      await toolbar.getByRole('button', { name: 'Delete' }).click();
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Delete' })
+        .click();
+      await expect(rows.filter({ hasText: 'Grocer' })).toHaveCount(0);
+      await expect(toolbar).toHaveCount(0);
+    });
+
+    test('upcoming posted', async () => {
+      const table = accountPage.transactionTable;
+      const upcoming = table.getByRole('heading', { name: 'Upcoming' });
+      const posted = table.getByRole('heading', { name: 'Posted' });
+      await expect(upcoming).toBeVisible();
+      await expect(posted).toBeVisible();
+
+      const y = async (locator: Locator) =>
+        (await locator.boundingBox())?.y ?? Number.NaN;
+      const phone = accountPage.transactionTableRow.filter({
+        hasText: 'Phone',
+      });
+      const grocer = accountPage.transactionTableRow.filter({
+        hasText: 'Grocer',
+      });
+      expect(await y(upcoming)).toBeLessThan(await y(phone));
+      expect(await y(phone)).toBeLessThan(await y(posted));
+      expect(await y(posted)).toBeLessThan(await y(grocer));
+    });
+  });
+
   test.describe('Import Transactions', () => {
     test.beforeEach(async () => {
       accountPage = await navigation.createAccount({
@@ -548,7 +661,9 @@ test.describe('Accounts', () => {
 
     async function importCsv(screenshot = false) {
       const fileChooserPromise = page.waitForEvent('filechooser');
-      await accountPage.page.getByRole('button', { name: 'Import' }).click();
+      await accountPage.page
+        .getByRole('button', { name: 'Import', exact: true })
+        .click();
 
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/test.csv'));
@@ -572,7 +687,9 @@ test.describe('Accounts', () => {
 
     test('preserves QIF categories in preview and imported transactions', async () => {
       const fileChooserPromise = page.waitForEvent('filechooser');
-      await accountPage.page.getByRole('button', { name: 'Import' }).click();
+      await accountPage.page
+        .getByRole('button', { name: 'Import', exact: true })
+        .click();
 
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/qif-categories.qif'));
@@ -599,7 +716,9 @@ test.describe('Accounts', () => {
       await importCsv(false);
 
       const fileChooserPromise = page.waitForEvent('filechooser');
-      await accountPage.page.getByRole('button', { name: 'Import' }).click();
+      await accountPage.page
+        .getByRole('button', { name: 'Import', exact: true })
+        .click();
 
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/test.csv'));
@@ -623,7 +742,9 @@ test.describe('Accounts', () => {
     test('imports a new transaction when an unchecked match has the same amount', async () => {
       async function openCsv(content: string) {
         const fileChooserPromise = page.waitForEvent('filechooser');
-        await accountPage.page.getByRole('button', { name: 'Import' }).click();
+        await accountPage.page
+          .getByRole('button', { name: 'Import', exact: true })
+          .click();
         const fileChooser = await fileChooserPromise;
         await fileChooser.setFiles({
           name: 'same-amount.csv',
@@ -671,7 +792,9 @@ test.describe('Accounts', () => {
 
     test('import notes checkbox is not shown for CSV files', async () => {
       const fileChooserPromise = page.waitForEvent('filechooser');
-      await accountPage.page.getByRole('button', { name: 'Import' }).click();
+      await accountPage.page
+        .getByRole('button', { name: 'Import', exact: true })
+        .click();
 
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/test.csv'));

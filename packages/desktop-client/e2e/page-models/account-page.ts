@@ -52,7 +52,10 @@ export class AccountPage {
     this.transactionTable = this.page.getByTestId('transaction-table');
     this.transactionTableRow = this.transactionTable.getByTestId('row');
 
-    this.filterButton = this.page.getByRole('button', { name: 'Filter' });
+    this.filterButton = this.page.getByRole('button', {
+      name: 'Filter',
+      exact: true,
+    });
     this.filterSelectTooltip = this.page.getByTestId('filters-select-tooltip');
 
     this.selectButton = this.page.getByTestId('transactions-select-button');

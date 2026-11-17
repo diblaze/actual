@@ -2731,6 +2731,29 @@ type TransactionTableInnerProps = {
   onDrop?: OnDropCallback;
 };
 
+function SectionHeading({
+  style,
+  children,
+}: {
+  style: CSSProperties;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      role="heading"
+      aria-level={3}
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: theme.pageTextSubdued,
+        ...style,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 function TransactionTableInner({
   tableNavigator,
   tableRef,
@@ -2887,76 +2910,103 @@ function TransactionTableInner({
     const prevRowDate = findPrevReorderableDate();
     const nextRowDate = findNextReorderableDate();
 
+    // First posted row after the scheduled ones: a label on its top border,
+    // so rows keep their fixed height and the table navigation stays as is
+    const isPostedStart =
+      index > 0 &&
+      !isPreviewId(trans.id) &&
+      isPreviewId(transactionsToRender[index - 1].id);
+
     return (
-      <Transaction
-        allTransactions={props.transactions}
-        editing={editing}
-        transaction={trans}
-        transferAccountsByTransaction={props.transferAccountsByTransaction}
-        subtransactions={childTransactions}
-        columns={columns}
-        selected={selected}
-        highlighted={false}
-        added={isNew?.(trans.id)}
-        expanded={isExpanded?.(trans.id)}
-        matched={isMatched?.(trans.id)}
-        pulse={trans.id === props.focusedTransactionId}
-        showZeroInDeposit={isChildDeposit}
-        balance={balances?.[trans.id] ?? 0}
-        amountColumnWidths={amountColumnWidths}
-        focusedField={editing ? tableNavigator.focusedField : undefined}
-        accounts={accounts}
-        categoryGroups={categoryGroups}
-        payees={payees}
-        dateFormat={dateFormat}
-        hideFraction={hideFraction}
-        onEdit={tableNavigator.onEdit}
-        onSave={props.onSave}
-        onDelete={props.onDelete}
-        onBatchDelete={props.onBatchDelete}
-        onBatchDuplicate={props.onBatchDuplicate}
-        onBatchLinkSchedule={props.onBatchLinkSchedule}
-        onBatchUnlinkSchedule={props.onBatchUnlinkSchedule}
-        onCreateRule={props.onCreateRule}
-        onScheduleAction={props.onScheduleAction}
-        onMakeAsNonSplitTransactions={props.onMakeAsNonSplitTransactions}
-        onSplit={props.onSplit}
-        onManagePayees={props.onManagePayees}
-        onCreatePayee={props.onCreatePayee}
-        onToggleSplit={props.onToggleSplit}
-        onNavigateToTransferAccount={onNavigateToTransferAccount}
-        onNavigateToSchedule={onNavigateToSchedule}
-        onNotesTagClick={onNotesTagClick}
-        splitError={
-          hasSplitError && (
-            <TransactionError
-              error={error}
-              isDeposit={!!isChildDeposit}
-              onAddSplit={() => props.onAddSplit(trans.id)}
-              onDistributeRemainder={() =>
-                props.onDistributeRemainder(trans.id)
-              }
-            />
-          )
-        }
-        listContainerRef={listContainerRef}
-        showSelection={showSelection}
-        allowSplitTransaction={allowSplitTransaction}
-        showHiddenCategories={showHiddenCategories}
-        canDrag={props.canDrag}
-        draggedId={props.draggedId}
-        draggedParentId={props.draggedParentId}
-        draggedDate={props.draggedDate}
-        siblingCount={siblingCount}
-        previewSiblingCount={previewSiblingCount}
-        prevRowDate={prevRowDate}
-        nextRowDate={nextRowDate}
-        sortField={props.sortField}
-        ascDesc={props.ascDesc}
-        onDragChange={props.onDragChange}
-        onDrop={props.onDrop}
-        index={index}
-      />
+      <>
+        {isPostedStart && (
+          <SectionHeading
+            style={{
+              position: 'absolute',
+              top: -7,
+              left: 30,
+              zIndex: 1,
+              height: 14,
+              lineHeight: '14px',
+              padding: '0 6px',
+              borderRadius: 7,
+              pointerEvents: 'none',
+              backgroundColor: theme.tableBackground,
+            }}
+          >
+            <Trans>Posted</Trans>
+          </SectionHeading>
+        )}
+        <Transaction
+          allTransactions={props.transactions}
+          editing={editing}
+          transaction={trans}
+          transferAccountsByTransaction={props.transferAccountsByTransaction}
+          subtransactions={childTransactions}
+          columns={columns}
+          selected={selected}
+          highlighted={false}
+          added={isNew?.(trans.id)}
+          expanded={isExpanded?.(trans.id)}
+          matched={isMatched?.(trans.id)}
+          pulse={trans.id === props.focusedTransactionId}
+          showZeroInDeposit={isChildDeposit}
+          balance={balances?.[trans.id] ?? 0}
+          amountColumnWidths={amountColumnWidths}
+          focusedField={editing ? tableNavigator.focusedField : undefined}
+          accounts={accounts}
+          categoryGroups={categoryGroups}
+          payees={payees}
+          dateFormat={dateFormat}
+          hideFraction={hideFraction}
+          onEdit={tableNavigator.onEdit}
+          onSave={props.onSave}
+          onDelete={props.onDelete}
+          onBatchDelete={props.onBatchDelete}
+          onBatchDuplicate={props.onBatchDuplicate}
+          onBatchLinkSchedule={props.onBatchLinkSchedule}
+          onBatchUnlinkSchedule={props.onBatchUnlinkSchedule}
+          onCreateRule={props.onCreateRule}
+          onScheduleAction={props.onScheduleAction}
+          onMakeAsNonSplitTransactions={props.onMakeAsNonSplitTransactions}
+          onSplit={props.onSplit}
+          onManagePayees={props.onManagePayees}
+          onCreatePayee={props.onCreatePayee}
+          onToggleSplit={props.onToggleSplit}
+          onNavigateToTransferAccount={onNavigateToTransferAccount}
+          onNavigateToSchedule={onNavigateToSchedule}
+          onNotesTagClick={onNotesTagClick}
+          splitError={
+            hasSplitError && (
+              <TransactionError
+                error={error}
+                isDeposit={!!isChildDeposit}
+                onAddSplit={() => props.onAddSplit(trans.id)}
+                onDistributeRemainder={() =>
+                  props.onDistributeRemainder(trans.id)
+                }
+              />
+            )
+          }
+          listContainerRef={listContainerRef}
+          showSelection={showSelection}
+          allowSplitTransaction={allowSplitTransaction}
+          showHiddenCategories={showHiddenCategories}
+          canDrag={props.canDrag}
+          draggedId={props.draggedId}
+          draggedParentId={props.draggedParentId}
+          draggedDate={props.draggedDate}
+          siblingCount={siblingCount}
+          previewSiblingCount={previewSiblingCount}
+          prevRowDate={prevRowDate}
+          nextRowDate={nextRowDate}
+          sortField={props.sortField}
+          ascDesc={props.ascDesc}
+          onDragChange={props.onDragChange}
+          onDrop={props.onDrop}
+          index={index}
+        />
+      </>
     );
   };
 
@@ -3029,6 +3079,19 @@ function TransactionTableInner({
         style={{ flex: 1, overflow: 'hidden' }}
         data-testid="transaction-table"
       >
+        {/* Static above the list, so it stays while scrolled past the
+            scheduled rows */}
+        {transactionsToRender[0] && isPreviewId(transactionsToRender[0].id) && (
+          <SectionHeading
+            style={{
+              padding: '2px 10px',
+              backgroundColor: theme.tableBackground,
+              borderBottom: `1px solid ${theme.tableBorder}`,
+            }}
+          >
+            <Trans>Upcoming</Trans>
+          </SectionHeading>
+        )}
         <Table
           navigator={tableNavigator}
           ref={tableRef}
