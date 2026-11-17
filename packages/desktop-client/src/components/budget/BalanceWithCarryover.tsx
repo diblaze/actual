@@ -4,9 +4,14 @@ import type {
   ComponentType,
   CSSProperties,
 } from 'react';
+import { Trans } from 'react-i18next';
 
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { SvgArrowThinRight } from '@actual-app/components/icons/v1';
+import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 
@@ -87,6 +92,9 @@ type BalanceWithCarryoverProps = Omit<
   isIncome?: boolean;
   shouldInlineGoalStatus?: boolean;
   CarryoverIndicator?: ComponentType<CarryoverIndicatorProps>;
+  tooltipDisabled?: boolean;
+  /** Card spending the category could not cover (credit overspending) */
+  creditDebt?: number;
 };
 
 export function BalanceWithCarryover({
@@ -99,6 +107,8 @@ export function BalanceWithCarryover({
   isIncome,
   shouldInlineGoalStatus,
   CarryoverIndicator: CarryoverIndicatorComponent = CarryoverIndicator,
+  tooltipDisabled,
+  creditDebt = 0,
   children,
   ...props
 }: BalanceWithCarryoverProps) {
@@ -107,7 +117,9 @@ export function BalanceWithCarryover({
   const budgetedValue = useSheetValue(budgeted);
   const longGoalValue = useSheetValue(longGoal);
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
-  const { decimalPlaces } = useFormat().currency;
+  const format = useFormat();
+  const { decimalPlaces } = format.currency;
+  const { isNarrowWidth } = useResponsive();
 
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
   const canShowGoal =
@@ -127,12 +139,16 @@ export function BalanceWithCarryover({
       : null;
 
   const getBalanceAmountStyle = (balanceValue: number) =>
-    makeBalanceAmountStyle(
-      balanceValue,
-      canShowGoal ? goalValue : null,
-      getHave(balanceValue),
-      decimalPlaces,
-    );
+    // Overspent only on a card: the debt stays on the card instead of
+    // coming out of next month's To Budget, so it is a warning, not red
+    creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0
+      ? { color: theme.warningText }
+      : makeBalanceAmountStyle(
+          balanceValue,
+          canShowGoal ? goalValue : null,
+          getHave(balanceValue),
+          decimalPlaces,
+        );
 
   const getDefaultClassName = (balanceValue: number) =>
     css({
@@ -150,6 +166,24 @@ export function BalanceWithCarryover({
     <CellValue binding={balance} type="financial" {...props}>
       {({ type, name, value: balanceValue }) => {
         const ringProgress = getRingProgress(balanceValue);
+        const amount = children ? (
+          children(
+            {
+              type,
+              name,
+              value: balanceValue,
+              className: getDefaultClassName(balanceValue),
+            },
+            ringProgress,
+          )
+        ) : (
+          <CellValueText
+            type={type}
+            name={name}
+            value={balanceValue}
+            className={getDefaultClassName(balanceValue)}
+          />
+        );
         return (
           <>
             <View
@@ -163,23 +197,30 @@ export function BalanceWithCarryover({
                   : { flexShrink: 0 }),
               }}
             >
-              {children ? (
-                children(
-                  {
-                    type,
-                    name,
-                    value: balanceValue,
-                    className: getDefaultClassName(balanceValue),
-                  },
-                  ringProgress,
-                )
+              {creditDebt > 0 ? (
+                <Tooltip
+                  content={
+                    <View style={{ padding: 10, maxWidth: 260 }}>
+                      <Text>
+                        <Trans>
+                          {{ amount: format(creditDebt, 'financial') }} of card
+                          spending was not covered. It stays on the card as debt
+                          and is not taken from next month's To Budget.
+                        </Trans>
+                      </Text>
+                    </View>
+                  }
+                  style={{ ...styles.tooltip, borderRadius: '0px 5px 5px 0px' }}
+                  placement="bottom"
+                  triggerProps={{
+                    delay: 750,
+                    isDisabled: isNarrowWidth || tooltipDisabled,
+                  }}
+                >
+                  {amount}
+                </Tooltip>
               ) : (
-                <CellValueText
-                  type={type}
-                  name={name}
-                  value={balanceValue}
-                  className={getDefaultClassName(balanceValue)}
-                />
+                amount
               )}
             </View>
             {!children && ringProgress != null && (

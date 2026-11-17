@@ -17,6 +17,7 @@ import {
   GoalProgressRing,
 } from '#components/budget/GoalProgressRing';
 import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useCreditCardDebt } from '#hooks/useCreditCardDebt';
 import { useFormat } from '#hooks/useFormat';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
@@ -72,6 +73,7 @@ export function BalanceCell({
       : envelopeBudget.catCarryover(category.id);
 
   const format = useFormat();
+  const creditDebt = useCreditCardDebt(category.id);
 
   return (
     <BalanceWithCarryover
@@ -85,6 +87,7 @@ export function BalanceCell({
       budgeted={budgeted}
       longGoal={longGoal}
       isIncome={category.is_income}
+      creditDebt={creditDebt}
       CarryoverIndicator={MobileCarryoverIndicator}
     >
       {({ type, value, className: defaultClassName }, ringProgress) => {
