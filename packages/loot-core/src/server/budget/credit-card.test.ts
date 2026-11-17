@@ -112,6 +112,22 @@ async function rollover(category: string) {
   await settle();
 }
 
+// Adds an on-budget account with the credit card box ticked, as the
+// Add-account dialog does
+async function createCard(name: string, balance = 0) {
+  const id = await runHandler(accountsApp.handlers['account-create'], {
+    name,
+    balance,
+    creditCard: true,
+  });
+  await settle();
+  const payment = await db.first<{ id: string }>(
+    'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
+    [id],
+  );
+  return { id, paymentId: payment?.id ?? '' };
+}
+
 // Food 30000, card -50000: the user's example
 async function overspendOnCard() {
   await setFoodBudget(JAN, 30000);
@@ -375,20 +391,14 @@ describe('credit card payment categories', () => {
     expect(value(FEB, 'to-budget')).toBe(50000);
   });
 
-  it('marks an account as credit card, and undoes it', async () => {
+  it('creates a card with its payment category, and undoes it', async () => {
     await setup({ visa: false });
-    await overspendOnCard();
-
-    await runHandler(accountsApp.handlers['account-mark-credit-card'], {
-      id: 'card',
-    });
+    const card = await createCard('Mastercard');
+    const id = card.paymentId;
+    expect(id).not.toBe('');
+    await setFoodBudget(JAN, 30000);
+    await tx(card.id, '2017-01-10', -50000, 'food');
     await settle();
-    const payment = await db.first<{ id: string }>(
-      'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
-      ['card'],
-    );
-    expect(payment).not.toBeNull();
-    const id = payment?.id ?? '';
     expect(value(JAN, `leftover-${id}`)).toBe(30000);
 
     await runMutator(() => undo());
@@ -421,7 +431,7 @@ describe('credit card payment categories', () => {
     );
 
     // The starting debt is negative income, and the same amount is set aside
-    // in the payment category, exactly as for a card marked later
+    // in the payment category
     expect(value(JAN, `leftover-${payment?.id}`)).toBe(5000);
     expect(value(JAN, 'to-budget')).toBe(95000);
   });
@@ -543,7 +553,7 @@ describe('credit card payment categories', () => {
     expect(value(FEB, 'budget-visa')).toBe(0);
   });
 
-  describe('marking is permanent', () => {
+  describe('payment categories belong to their card', () => {
     it('refuses to delete a payment category or its group', async () => {
       await setup();
 
@@ -555,24 +565,19 @@ describe('credit card payment categories', () => {
       ).rejects.toThrow('cannot be deleted');
     });
 
-    it('marks a card only once, and only on budget', async () => {
+    it('creates no payment category for an off-budget card', async () => {
       await setup();
-      await db.insertAccount({ id: 'loan', name: 'Loan', offbudget: 1 });
-
-      await runHandler(accountsApp.handlers['account-mark-credit-card'], {
-        id: 'card',
+      const id = await runHandler(accountsApp.handlers['account-create'], {
+        name: 'Loan',
+        offBudget: true,
+        creditCard: true,
       });
-      const payments = await db.all<{ id: string }>(
-        'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
-        ['card'],
-      );
-      expect(payments).toHaveLength(1);
 
-      await expect(
-        runHandler(accountsApp.handlers['account-mark-credit-card'], {
-          id: 'loan',
-        }),
-      ).rejects.toThrow('on-budget');
+      const payment = await db.first<{ id: string }>(
+        'SELECT id FROM categories WHERE payment_account = ?',
+        [id],
+      );
+      expect(payment).toBeNull();
     });
 
     it('keeps the payment category named after the card and visible', async () => {
@@ -606,9 +611,7 @@ describe('credit card payment categories', () => {
     });
 
     describe('edge cases', () => {
-      const mark = (id = 'card') =>
-        runHandler(accountsApp.handlers['account-mark-credit-card'], { id });
-      const paymentOf = (account = 'card') =>
+      const paymentOf = (account: string) =>
         db.first<{
           id: string;
           name: string;
@@ -619,54 +622,6 @@ describe('credit card payment categories', () => {
             WHERE payment_account = ? AND tombstone = 0`,
           [account],
         );
-
-      it('revives the same category, named and visible, after a flag-off delete', async () => {
-        await setup();
-        await setFlag(false);
-        await settle();
-        await db.update('categories', { id: 'visa', hidden: 1 });
-        await runHandler(budgetApp.handlers['category-delete'], { id: 'visa' });
-        await runHandler(accountsApp.handlers['account-update'], {
-          id: 'card',
-          name: 'Visa Gold',
-        });
-        // Renaming with the feature off leaves categories alone
-        const deleted = await db.first<{ name: string }>(
-          "SELECT name FROM categories WHERE id = 'visa'",
-        );
-        expect(deleted?.name).toBe('Visa');
-
-        await setFlag(true);
-        await settle();
-        await mark();
-        expect(await paymentOf()).toEqual({
-          id: 'visa',
-          name: 'Visa Gold',
-          hidden: 0,
-          cat_group: 'cc',
-        });
-      });
-
-      it('revives a category deleted into another one with its own transactions', async () => {
-        await setup();
-        await setFlag(false);
-        await settle();
-        await runHandler(budgetApp.handlers['category-delete'], {
-          id: 'visa',
-          transferId: 'food',
-        });
-        await setFlag(true);
-        await settle();
-        await mark();
-        await tx('checking', '2017-01-15', -1000, 'visa');
-        await settle();
-
-        const mapping = await db.first<{ transferId: string }>(
-          "SELECT transferId FROM category_mapping WHERE id = 'visa'",
-        );
-        expect(mapping?.transferId).toBe('visa');
-        expect(value(JAN, 'sum-amount-visa')).toBe(-1000);
-      });
 
       it('keeps a card that leaves and comes back on budget', async () => {
         await setup();
@@ -706,20 +661,6 @@ describe('credit card payment categories', () => {
         ).rejects.toThrow('hidden group');
       });
 
-      it('revives into a live payment group when its own group is gone', async () => {
-        await setup({ amex: true });
-        await setFlag(false);
-        await settle();
-        await db.update('categories', { id: 'visa', cat_group: 'group1' });
-        await runHandler(budgetApp.handlers['category-delete'], { id: 'visa' });
-        await db.update('category_groups', { id: 'group1', tombstone: 1 });
-        await setFlag(true);
-        await settle();
-
-        await mark();
-        expect((await paymentOf())?.cat_group).toBe('cc');
-      });
-
       it('adopts a category already named after the card', async () => {
         await setup({ visa: false });
         await db.insertCategory({
@@ -727,10 +668,10 @@ describe('credit card payment categories', () => {
           name: 'VISA',
           cat_group: 'cc',
         });
-        await mark();
+        const card = await createCard('Visa');
 
-        expect((await paymentOf())?.id).toBe('manual');
-        expect((await paymentOf())?.name).toBe('Visa');
+        expect((await paymentOf(card.id))?.id).toBe('manual');
+        expect((await paymentOf(card.id))?.name).toBe('Visa');
       });
 
       it('lets a payment category be renamed with the feature off', async () => {
@@ -777,37 +718,12 @@ describe('credit card payment categories', () => {
       await setup({ visa: false });
       // No Credit Card Payments group yet
       db.runQuery("UPDATE category_groups SET tombstone = 1 WHERE id = 'cc'");
-      await runHandler(accountsApp.handlers['account-mark-credit-card'], {
-        id: 'card',
-      });
+      await createCard('Visa');
 
       const [top] = await db.all<{ name: string }>(
         'SELECT name FROM category_groups WHERE tombstone = 0 AND is_income = 0 ORDER BY sort_order, id',
       );
       expect(top.name).toBe('Credit Card Payments');
-    });
-
-    it('keeps a card linked to the same payment category', async () => {
-      await setup({ visa: false });
-      const mark = () =>
-        runHandler(accountsApp.handlers['account-mark-credit-card'], {
-          id: 'card',
-        });
-      const linked = () =>
-        db.first<{ id: string }>(
-          'SELECT id FROM categories WHERE payment_account = ? AND tombstone = 0',
-          ['card'],
-        );
-
-      await mark();
-      const first = await linked();
-      await runMutator(() => undo());
-      await settle();
-      expect(await linked()).toBeNull();
-
-      await mark();
-      await settle();
-      expect((await linked())?.id).toBe(first?.id);
     });
 
     it('does not let a category update change which card it pays', async () => {

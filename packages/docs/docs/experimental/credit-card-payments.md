@@ -4,22 +4,21 @@
 
 ## What it is
 
-With this feature turned on, an on-budget account can be marked as a credit card, the way nYNAB handles cards. Actual then creates a payment category for the card, named after the account, in a **Credit Card Payments** group. The payment category holds the money you need to pay the card off.
+With this feature turned on, an on-budget account can be added as a credit card, the way nYNAB handles cards. Actual then creates a payment category for the card, named after the account, in a **Credit Card Payments** group. The payment category holds the money you need to pay the card off.
 
-It works with envelope budgeting only. Off-budget accounts cannot be marked as credit cards.
+It works with envelope budgeting only. Off-budget accounts cannot be credit cards.
 
-## Marking a card
+## Adding a card
 
-- When creating a local account, tick **Credit card**.
-- For an existing account, choose **Mark as credit card** in the account menu (desktop). On mobile, use the checkbox when creating the account.
+When adding a local account, tick **Credit card** (desktop and mobile). This cannot be changed later, as in YNAB: an existing account cannot become a card, and a card cannot stop being one.
 
-Marking is permanent, as in nYNAB: a card cannot be unmarked. Undo right after marking works.
+To turn an existing account into a card, add a new account with **Credit card** ticked, move the old account's transactions to it (select them all, then **Account**), and close the old account. Then clear the category of the moved starting balance: categorised as Starting Balances it would count as income on the card.
 
-Each card has exactly one payment category, created by marking the card; it cannot be made by hand or linked to another card. It is named after the card's account and follows it when you rename the account. While the feature is on, the payment category cannot be renamed, hidden or deleted, and the group holding it cannot be hidden or deleted; you can still move them. Marking a card again (for example after an undo) brings back the same payment category.
+Each card has exactly one payment category, created with the card; it cannot be made by hand or linked to another card. It is named after the card's account and follows it when you rename the account. While the feature is on, the payment category cannot be renamed, hidden or deleted, and the group holding it cannot be hidden or deleted; you can still move them.
 
-If the Credit Card Payments group already holds a category named after the card (for example from a manual workaround), marking the card turns that category into its payment category. Deleting a card account, or moving it off budget, turns its payment category back into an ordinary category.
+If the Credit Card Payments group already holds a category named after the card (for example from a manual workaround), adding the card turns that category into its payment category. Deleting a card account turns its payment category back into an ordinary category.
 
-The Credit Card Payments group is created at the top of the budget. Marking an account that already has transactions recalculates past months as if it had always been a credit card.
+The Credit Card Payments group is created at the top of the budget.
 
 ## How spending moves
 
@@ -40,8 +39,9 @@ Each month, cash spending in a category is counted before card spending. Card tr
 
 ## Good to know
 
-- Marking a card, reordering payment categories, and turning the feature on or off rebuild the budget.
+- Adding a card, reordering payment categories, and turning the feature on or off rebuild the budget.
 - The 3, 6 and 12 month average budget actions skip payment categories.
 - A card's starting balance is categorised like any other starting balance. The starting debt therefore lowers To Budget, and the same amount is set aside in the payment category.
 - Turning the feature off turns payment categories back into ordinary categories, and all numbers return to Actual's normal behaviour.
-- Undo history and changes synced from older app versions can still rename or hide a payment category; marking the card again restores its name and shows it.
+- Undo history and changes synced from older app versions can still rename or hide a payment category; renaming the card account restores its name, and a hidden payment category keeps **Show** in its menu.
+- With the feature off, a payment category can be deleted. Turning the feature back on does not recreate it; replace the card account as described above.

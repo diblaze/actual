@@ -19,7 +19,7 @@ type MaybePaymentCategory = {
 };
 
 // Same rule as the server: the card must be a live on-budget account, and if
-// two devices marked it, the first payment category (sort order, id) wins
+// two categories are linked to it, the first one (sort order, id) wins
 export function useIsPaymentCategory(): (cat: MaybePaymentCategory) => boolean {
   const isEnabled = useCreditCardsEnabled();
   const { data: accounts = [] } = useAccounts();

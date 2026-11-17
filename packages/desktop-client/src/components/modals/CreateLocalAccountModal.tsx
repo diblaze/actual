@@ -41,7 +41,7 @@ export function CreateLocalAccountModal() {
   const [name, setName] = useState('');
   const [offbudget, setOffbudget] = useState(false);
   const [creditCard, setCreditCard] = useState(false);
-  const canMarkCreditCard = useCreditCardsEnabled();
+  const canAddCreditCard = useCreditCardsEnabled();
   const [balance, setBalance] = useState('0');
 
   const [nameError, setNameError] = useState(null);
@@ -75,7 +75,7 @@ export function CreateLocalAccountModal() {
           name,
           balance: toRelaxedNumber(balance),
           offBudget: offbudget,
-          creditCard: canMarkCreditCard && !offbudget && creditCard,
+          creditCard: canAddCreditCard && !offbudget && creditCard,
         },
         {
           onSuccess: id => {
@@ -203,7 +203,7 @@ export function CreateLocalAccountModal() {
                       </Trans>
                     </Text>
                   </div>
-                  {canMarkCreditCard && !offbudget && (
+                  {canAddCreditCard && !offbudget && (
                     <>
                       <View
                         style={{
