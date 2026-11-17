@@ -45,7 +45,8 @@ const focusRing = css({
 
 type IconType = ComponentType<{ width: number; height: number }>;
 
-// The current destination and the Add action
+// What the phone bar and the tablet rail share: the current destination and
+// the Add action
 function useNavState() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -211,21 +212,127 @@ function NavTab({
   path,
   Icon,
   isActive,
+  style,
 }: {
   name: string;
   path: string;
   Icon: IconType;
   isActive: boolean;
+  style?: CSSProperties;
 }) {
   return (
     <Link
       to={path}
       aria-current={isActive ? 'page' : undefined}
       className={focusRing}
-      style={tabStyle(isActive)}
+      style={{ ...tabStyle(isActive), ...style }}
     >
       <Icon width={22} height={22} />
       {name}
     </Link>
+  );
+}
+
+// The rail floats inset from the window edge, like the phone bar
+const RAIL_WIDTH = 84;
+const RAIL_INSET = 14;
+const RAIL_ITEM_STYLE: CSSProperties = { width: 72, borderRadius: 18 };
+
+// Tablet (730–1099px): the phone destinations in an inset glass rail, with
+// the round Add at its foot
+export function TabletRail() {
+  const { t } = useTranslation();
+  const dispatch = useDispatch();
+  const nav = useNavState();
+
+  return (
+    <nav
+      aria-label={t('Main')}
+      style={{
+        width: RAIL_WIDTH,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: spacing.sm,
+        // Clear the notch and home indicator in the native apps (zero
+        // elsewhere)
+        marginTop: `calc(${RAIL_INSET}px + env(safe-area-inset-top))`,
+        marginBottom: `calc(${RAIL_INSET}px + env(safe-area-inset-bottom))`,
+        marginLeft: `calc(${RAIL_INSET}px + env(safe-area-inset-left))`,
+        padding: `${RAIL_INSET}px 0`,
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+        borderRadius: 28, // ds-allow-hardcode: 901d6cb rail radius
+        backgroundColor: theme.glassBackground,
+        border: `1px solid ${theme.glassBorder}`,
+        boxShadow: theme.floatingElevation,
+        backdropFilter: 'blur(24px)', // ds-allow-hardcode: glass blur
+        WebkitBackdropFilter: 'blur(24px)', // ds-allow-hardcode: glass blur
+      }}
+    >
+      <NavTab
+        name={t('Budget')}
+        path="/budget"
+        Icon={SvgWallet}
+        isActive={nav.isBudgetActive}
+        style={RAIL_ITEM_STYLE}
+      />
+      <NavTab
+        name={t('Transactions')}
+        path="/accounts/all"
+        Icon={SvgListBullet}
+        isActive={nav.isTransactionsActive}
+        style={RAIL_ITEM_STYLE}
+      />
+      <NavTab
+        name={t('Accounts')}
+        path="/accounts"
+        Icon={SvgPiggyBank}
+        isActive={nav.isAccountsActive}
+        style={RAIL_ITEM_STYLE}
+      />
+      <NavTab
+        name={t('Reports')}
+        path="/reports"
+        Icon={SvgReports}
+        isActive={nav.isReportsActive}
+        style={RAIL_ITEM_STYLE}
+      />
+      <Button
+        variant="bare"
+        aria-current={nav.isMoreActive ? 'page' : undefined}
+        className={focusRing}
+        onPress={() => dispatch(pushModal({ modal: { name: 'more' } }))}
+        style={{
+          ...tabStyle(nav.isMoreActive),
+          ...RAIL_ITEM_STYLE,
+          padding: 0,
+        }}
+      >
+        <SvgDotsHorizontalTriple width={22} height={22} />
+        <Trans>More</Trans>
+      </Button>
+      <span style={{ flex: 1 }} />
+      <Button
+        variant="bare"
+        aria-label={t('Add transaction')}
+        className={focusRing}
+        onPress={nav.onAdd}
+        style={{
+          ...styles.noTapHighlight,
+          width: ADD_HEIGHT,
+          height: ADD_HEIGHT,
+          flexShrink: 0,
+          padding: 0,
+          borderRadius: ADD_HEIGHT / 2,
+          color: theme.buttonPrimaryText,
+          backgroundColor: theme.buttonPrimaryBackground,
+          boxShadow: theme.floatingElevation,
+        }}
+      >
+        <SvgAdd width={24} height={24} />
+      </Button>
+    </nav>
   );
 }

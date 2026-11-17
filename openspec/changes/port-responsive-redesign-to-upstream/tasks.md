@@ -49,10 +49,10 @@ Worktree `/home/denis/git/actual/feat/responsive-redesign-v2`, branch `feat/resp
 - [x] 3.6 `git -C … commit -am 'feat(manage): accounts, schedules, payees, rules, theme'`; verify: **E2E** `e2e/manage-redesign.mobile.test.ts e2e/settings.mobile.test.ts e2e/payees.mobile.test.ts e2e/schedules.mobile.test.ts e2e/rules.mobile.test.ts e2e/tags.mobile.test.ts e2e/bank-sync.mobile.test.ts` passes
 
 ## 4. Tablet: glass rail and category panel
-- [ ] 4.1 Copy old `e2e/tablet.test.ts` at 1024x768. Its tests `rail`, `three columns`, `inspector pane`, `card overspend warning` and `carried card debt red` prove "Rail shows labelled destinations", "Tablet rows show three amounts", "Selecting a category fills inspector", "Tablet card overspending shows warning", "Tablet carried card debt shows red"
-- [ ] 4.2 `TabletRail` in `src/components/mobile/MobileNavTabs.tsx`, `{isMediumWidth ? <TabletRail /> : <FloatableSidebar />}`, the Electron drag strip and Titlebar only on wide in `src/components/FinancesApp.tsx` (E14); verify: 4.1 `rail` passes
-- [ ] 4.3 Spent track at tablet width, highlighted selected row, and the `CategorySheetBody` panel in `src/components/mobile/budget/{BudgetPage,ExpenseCategoryListItem}.tsx`; verify: 4.1 passes
-- [ ] 4.4 `git -C … commit -am 'feat(tablet): glass rail and category panel'`; verify: **E2E** `e2e/tablet.test.ts` passes
+- [x] 4.1 Copy old `e2e/tablet.test.ts` at 1024x768. Its tests `rail`, `three columns`, `inspector pane`, `card overspend warning` and `carried card debt red` prove "Rail shows labelled destinations", "Tablet rows show three amounts", "Selecting a category fills inspector", "Tablet card overspending shows warning", "Tablet carried card debt shows red"
+- [x] 4.2 `TabletRail` in `src/components/mobile/MobileNavTabs.tsx`, `{isMediumWidth ? <TabletRail /> : <FloatableSidebar />}`, the Electron drag strip and Titlebar only on wide in `src/components/FinancesApp.tsx` (E14); verify: 4.1 `rail` passes
+- [x] 4.3 Spent track at tablet width, highlighted selected row, and the `CategorySheetBody` panel in `src/components/mobile/budget/{BudgetPage,ExpenseCategoryListItem}.tsx`; verify: 4.1 passes
+- [x] 4.4 `git -C … commit -am 'feat(tablet): glass rail and category panel'`; verify: **E2E** `e2e/tablet.test.ts` passes
 
 ## 5. Desktop: card budget, inspector, register toolbar
 - [ ] 5.1 Port old `e2e/budget.test.ts` additions. Its tests `new sidebar default`, `sidebar card`, `row pills`, `card overspend warning`, `carried card debt red`, `overspent fix`, `inspector recent` and `inspector goal` (goal templates on) prove "Inspector shows goal progress", "New sidebar shown by default", "Sidebar is an inset card", "Rows show outlined budgeted and balance pill", "Desktop card overspending shows warning", "Desktop carried card debt shows red", "Desktop overspent Fix opens list", "Inspector shows balance and recent transactions"

@@ -11,6 +11,7 @@ import { theme } from '@actual-app/components/theme';
 import { radius } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import * as undo from '@actual-app/core/platform/client/undo';
+import { isElectron } from '@actual-app/core/shared/environment';
 
 import { getLatestAppVersion, sync } from '#app/appSlice';
 import { ProtectedRoute } from '#auth/ProtectedRoute';
@@ -35,7 +36,7 @@ import { EnableBankingCallback } from './EnableBankingCallback';
 import { FeatureErrorFallback } from './FeatureErrorFallback';
 import { GlobalKeys } from './GlobalKeys';
 import { MobileBankSyncAccountEditPage } from './mobile/banksync/MobileBankSyncAccountEditPage';
-import { MobileNavTabs } from './mobile/MobileNavTabs';
+import { MobileNavTabs, TabletRail } from './mobile/MobileNavTabs';
 import { TransactionEdit } from './mobile/transactions/TransactionEdit';
 import { NotificationsPage } from './news/NotificationsPage';
 import { Notifications } from './Notifications';
@@ -105,7 +106,7 @@ function RouterBehaviors() {
 }
 
 export function FinancesApp() {
-  const { isNarrowWidth } = useResponsive();
+  const { isWideWidth, isMediumWidth, isNarrowWidth } = useResponsive();
   const sidebar = useSidebar();
   useMetaThemeColor(theme.mobileViewTheme);
 
@@ -246,7 +247,7 @@ export function FinancesApp() {
             flex: 1,
           }}
         >
-          <FloatableSidebar />
+          {isMediumWidth ? <TabletRail /> : <FloatableSidebar />}
 
           <View
             style={{
@@ -258,7 +259,7 @@ export function FinancesApp() {
               // The wide layout has no header of its own to absorb the status
               // bar in the mobile apps (zero elsewhere); the narrow layout's
               // page header handles it.
-              ...(!isNarrowWidth && {
+              ...(isWideWidth && {
                 paddingTop: 'env(safe-area-inset-top)',
                 paddingRight: 'env(safe-area-inset-right)',
                 // A floating sidebar overlays this pane instead of sitting
@@ -267,10 +268,25 @@ export function FinancesApp() {
                   paddingLeft: 'env(safe-area-inset-left)',
                 }),
               }),
+              // Tablet: the rail takes the left inset and the page header
+              // (or the transaction editor's) the top one
+              ...(isMediumWidth && {
+                paddingRight: 'env(safe-area-inset-right)',
+              }),
             }}
           >
+            {/* Tablet hides the Titlebar; keep the Electron window draggable */}
+            {isMediumWidth && isElectron() && (
+              <View
+                style={{
+                  flexShrink: 0,
+                  height: 12, // ds-allow-hardcode: 901d6cb drag strip
+                  WebkitAppRegion: 'drag',
+                }}
+              />
+            )}
             <ScrollProvider
-              isDisabled={!isNarrowWidth}
+              isDisabled={isWideWidth}
               scrollableRef={scrollableRef}
             >
               <MobilePageHeaderProvider>
@@ -282,19 +298,21 @@ export function FinancesApp() {
                     position: 'relative',
                   }}
                 >
-                  <Titlebar
-                    style={{
-                      WebkitAppRegion: 'drag',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      zIndex: 1000,
-                    }}
-                  />
+                  {isWideWidth && (
+                    <Titlebar
+                      style={{
+                        WebkitAppRegion: 'drag',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 1000,
+                      }}
+                    />
+                  )}
                   <Notifications />
                   <BankSyncStatus />
-                  {isNarrowWidth && !isEditorPage && <MobilePageHeaderSlot />}
+                  {!isWideWidth && !isEditorPage && <MobilePageHeaderSlot />}
 
                   <Routes location={mainLocation}>
                     <Route path="/" element={<StartPageRedirect />} />
