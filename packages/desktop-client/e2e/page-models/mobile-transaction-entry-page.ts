@@ -4,7 +4,9 @@ import { MobileAccountPage } from './mobile-account-page';
 
 export class MobileTransactionEntryPage {
   readonly page: Page;
+  readonly sheetHeader: Locator;
   readonly header: Locator;
+  readonly cancelButton: Locator;
   readonly amountField: Locator;
   readonly transactionForm: Locator;
   readonly footer: Locator;
@@ -12,12 +14,18 @@ export class MobileTransactionEntryPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.header = page.getByRole('heading');
+    // The editor's purple header: Cancel, title, ⋯ menu and the amount
+    this.sheetHeader = page.getByTestId('transaction-sheet-header');
+    this.header = this.sheetHeader.getByRole('heading');
+    this.cancelButton = this.sheetHeader.getByRole('button', {
+      name: 'Cancel',
+    });
     this.transactionForm = page.getByTestId('transaction-form');
     this.amountField = this.transactionForm.getByTestId('amount-input');
     this.footer = page.getByTestId('transaction-form-footer');
     this.addTransactionButton = this.footer.getByRole('button', {
       name: 'Add transaction',
+      exact: true,
     });
   }
 
@@ -43,7 +51,9 @@ export class MobileTransactionEntryPage {
     // pressSequentially + option click: fill()+Enter breaks the autocomplete
     // highlight and selects "None"/wrong entry under CPU contention.
     await comboboxInput.pressSequentially(content);
+    // The picker's options; the register behind the sheet has options too
     await this.page
+      .locator('[data-testid$="-autocomplete-modal"]')
       .getByRole('option')
       .filter({ hasText: content })
       .first()

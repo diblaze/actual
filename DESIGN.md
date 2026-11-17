@@ -8,6 +8,7 @@ colors:
   actual-purple-hover: '#a368fc'
   navy-ink: '#102a43'
   navy-slate: '#627d98'
+  navy-steel: '#486581'
   navy-mist: '#e8ecf0'
   navy-frost: '#f7fafc'
   page-text: '#272630'
@@ -42,7 +43,8 @@ typography:
 rounded:
   sm: '4px'
   md: '6px'
-  sheet: '18px'
+  card: '22px'
+  sheet: '24px'
 spacing:
   xs: '5px'
   sm: '10px'
@@ -101,7 +103,8 @@ All hex values in this file (frontmatter included) are the light-theme palette m
 
 - **Navy Ink** (#102a43): Sidebar background, darkest text. The app's anchor dark.
 - **Page Ink** (#272630): Default body text on light surfaces.
-- **Navy Slate** (#627d98): Secondary and subdued text, table headers.
+- **Navy Steel** (#486581): Secondary text (`pageTextLight`); 5.1:1 on Navy Mist.
+- **Navy Slate** (#627d98): Subdued text and table meta where contrast is not required.
 - **Navy Mist** (#e8ecf0): Page background, table borders, dividers.
 - **Navy Frost** (#f7fafc): Hover rows, raised header rows.
 - **Surface White** (#ffffff): Tables, cards, menus, modals.
@@ -112,12 +115,21 @@ All hex values in this file (frontmatter included) are the light-theme palette m
 - **Negative Red** (#e12d39): Negative amounts, overspending, failures.
 - **Link Blue** (#1980d4): Links and informational highlights.
 - **Warning Gold** (#b88115): Underfunded templates, pending states.
+- **Balance pills** (`balance{Positive,Warning,Negative,Zero}{Background,Text}`): Tinted pill pairs for a category's balance: green #c6f7e2 on ink #0e5c49, gold #fcf088 on #5c4108, red #ffe3e3 on #b81d2a, mist #e8ecf0 on Navy Steel.
+
+### Surfaces (phone shell)
+
+- **Accent Subtle** (`accentSubtleBackground` #efe3fb, `accentSubtleText` #7a0ecc): Current tab and rail pill, banner action buttons, selected row. Schedule status keeps `upcoming*`.
+- **Glass** (`glassBackground` white at 88%, `glassBorder` slate at 18%): The floating tab bar and round header buttons only; 82–88% opaque so text stays readable without blur.
+- **Elevation tokens**: `cardElevation` (1px ring plus a faint shadow; ring only in dark and midnight) and `floatingElevation` (tab bar, Add button) are `box-shadow` values, so themes can drop the shadow.
 
 ### Named Rules
 
 **The Semantic Token Rule.** Components never use raw palette values or hex codes. Every color goes through the `theme.*` semantic layer (`--color-*` custom properties) so all three themes (light, dark, midnight) stay correct. A hardcoded hex in a component is a bug.
 
 **The One Accent Rule.** Actual Purple appears on well under 10% of any screen: primary action, current selection, active nav. It never decorates.
+
+**The Contrast Rule.** Body, secondary, button and banner text and every balance pill stay at 4.5:1 or more on their background in light, dark and midnight. `component-library/src/themes/source/contrast.web.test.ts` measures the pairs from the generated theme css.
 
 **The Never-Color-Alone Rule.** Positive/negative money state is conveyed by sign and context as well as color; green/red are reinforcement, never the only signal.
 
@@ -139,7 +151,7 @@ All hex values in this file (frontmatter included) are the light-theme palette m
 
 ### Standard Component Sizes
 
-`Button`, `Text` and `Input` accept a `size` prop: `small` | `medium` | `large` | `extra-large` (the `ComponentSize` vocabulary in `packages/component-library/src/tokens.ts`). Omitting the prop renders exactly as before — fully backward compatible. Sizes are responsive: they step up one notch on mobile/narrow for readability and touch targets, and collapse to the compact desktop scale from 512px/730px up. Breakpoint groups mirror the `useResponsive` view modes: narrow <512, small 512–729, medium 730–1099, wide ≥1100.
+`Button`, `Text` and `Input` accept a `size` prop: `small` | `medium` | `large` | `extra-large` (the `ComponentSize` vocabulary in `packages/component-library/src/tokens.ts`). Omitting the prop renders exactly as before — fully backward compatible. Sizes are responsive: they step up one notch on mobile/narrow for readability and touch targets, and collapse to the compact desktop scale from 512px/730px up. Size breakpoint groups: narrow <512, small 512–729, medium 730–1099, wide ≥1100. The phone layout (`useResponsive().isNarrowWidth`) covers everything below 730px, so it spans both the narrow and small size groups.
 
 Text values (fontSize / lineHeight, px):
 
@@ -177,7 +189,7 @@ Flat-first with ambient shadows. Structure comes from 1px borders (Navy Mist) an
 
 ### Named Rules
 
-**The Transient-Only Rule.** If a surface stays on screen, it gets a border. If it appears on interaction and disappears, it may cast a shadow.
+**The Transient-Only Rule.** If a surface stays on screen, it gets a border. If it appears on interaction and disappears, it may cast a shadow. Exception: the phone's floating tab bar and Add button float over scrolling content and take `floatingElevation`.
 
 ## 5. Components
 
@@ -198,7 +210,7 @@ Utilitarian and quick: compact paddings, instant state feedback, built for daily
 
 ### Cards / Containers
 
-- **Corner Style:** 6px radius on table containers (top corners), 4px elsewhere; mobile bottom sheets use 18px top corners and a flat bottom edge
+- **Corner Style:** 6px radius on table containers (top corners), 4px elsewhere. Phone cards use `radius.card` (22px) and bottom sheets `radius.sheet` (24px) on their top corners and a flat bottom edge, on the page background (`tokens.ts`)
 - **Background:** Surface White on Navy Mist page background
 - **Shadow Strategy:** Card shadow at most; structure via 1px Navy Mist border
 - **Internal Padding:** 16-20px
@@ -206,8 +218,8 @@ Utilitarian and quick: compact paddings, instant state feedback, built for daily
 ### Navigation
 
 - **Sidebar:** Navy Ink background, light navy text; hover darkens the row, selection marked with a purple accent and purple text. Status states (pending/positive/failed) tint the item background gold/green/red
-- **Mobile:** Purple header, white nav bar, purple selected item
-- **Mobile sheets:** Menus open as bottom sheets on the modal surface (`modalBackground`) with a grab handle in `pageTextSubdued` and hairline row dividers in `tooltipBorder`. Rows are full-width bare buttons, destructive rows in `errorText`, section labels in sentence case only when a sheet has two or more groups. Dismiss by swipe down, tap outside or Escape; no close button
+- **Mobile:** A floating inset glass tab bar (72px, fully rounded) with Budget, Transactions, Accounts, Reports and More; the current tab sits in an Accent Subtle pill. A floating purple "Add" pill above it on the budget and transaction lists. Pages open with round 44px glass header buttons above a 34px left-aligned title, transparent on the page background. Dialogs open as bottom sheets
+- **Mobile sheets:** Every phone dialog opens as a bottom sheet on the page background (`pageBackground`) with a grab handle in `pageTextSubdued` above a header holding the title and a Close button, and hairline row dividers in `tooltipBorder`. Rows are full-width bare buttons, destructive rows in `errorText`, section labels in sentence case only when a sheet has two or more groups. Dismiss by Close, swipe down, tap outside or Escape
 
 ### Pills / Chips
 
@@ -226,11 +238,11 @@ The core surface of the app. White rows on 1px Navy Mist borders, Frost hover, p
 - **Do** keep components compact and quick: 4px radii, 5-10px paddings, instant hover/press states.
 - **Do** reuse the existing component library (`@actual-app/components`) before writing new UI.
 - **Do** keep Actual Purple scarce: primary action and selection only.
-- **Do** respect the breakpoints: 512px (small), 730px (medium), 1100px (wide); mobile touch targets are at least 40px tall.
+- **Do** respect the breakpoints: 512px (small), 730px (medium, the phone/desktop layout switch), 1100px (wide); mobile touch targets are at least 40px tall.
 
 ### Don't:
 
-- **Don't** use fintech-startup gloss: gradient heroes, glassmorphism, neon accents, crypto-dashboard styling (PRODUCT.md anti-reference).
+- **Don't** use fintech-startup gloss: gradient heroes, glassmorphism, neon accents, crypto-dashboard styling (PRODUCT.md anti-reference). Glass is limited to the phone tab bar and header buttons.
 - **Don't** use corporate banking UI patterns: navy-and-gold, enterprise-portal density, legalese energy (PRODUCT.md anti-reference).
 - **Don't** hardcode hex values or raw `--palette-*` colors in components; the semantic layer is the only entry point.
 - **Don't** rely on color alone for positive/negative amounts.

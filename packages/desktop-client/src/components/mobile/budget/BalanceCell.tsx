@@ -12,6 +12,7 @@ import { css, cx } from '@emotion/css';
 import { AutoTextSize } from 'auto-text-size';
 
 import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
+import type { BalanceStatus } from '#components/budget/BalanceWithCarryover';
 import {
   getGoalRingLabel,
   GoalProgressRing,
@@ -24,10 +25,30 @@ import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
 import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
-import { getColumnWidth, PILL_STYLE } from './BudgetTable';
+import { AMOUNT_FONT, CELL_BUTTON_STYLE, FitAmountColumn } from './BudgetTable';
 
-// Room for the goal progress ring, its gap and the pill padding
-const RING_RESERVE = 28;
+// Pill colours for each balance state; the sheet's Balance uses the text
+export const BALANCE_PILL_COLORS: Record<
+  BalanceStatus,
+  { backgroundColor: string; color: string }
+> = {
+  positive: {
+    backgroundColor: theme.balancePositiveBackground,
+    color: theme.balancePositiveText,
+  },
+  warning: {
+    backgroundColor: theme.balanceWarningBackground,
+    color: theme.balanceWarningText,
+  },
+  negative: {
+    backgroundColor: theme.balanceNegativeBackground,
+    color: theme.balanceNegativeText,
+  },
+  zero: {
+    backgroundColor: theme.balanceZeroBackground,
+    color: theme.balanceZeroText,
+  },
+};
 
 type BalanceCellProps = {
   binding: Binding<
@@ -35,7 +56,6 @@ type BalanceCellProps = {
     'leftover' | 'sum-amount'
   >;
   category: CategoryEntity;
-  show3Columns?: boolean;
   onPress?: () => void;
   'aria-label'?: string;
 };
@@ -43,15 +63,11 @@ type BalanceCellProps = {
 export function BalanceCell({
   binding,
   category,
-  show3Columns,
   onPress,
   'aria-label': ariaLabel,
 }: BalanceCellProps) {
   const { t } = useTranslation();
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
-  const columnWidth = getColumnWidth({
-    show3Columns,
-  });
 
   const goal =
     budgetType === 'tracking'
@@ -93,25 +109,22 @@ export function BalanceCell({
       cardToPay={cardToPay}
       CarryoverIndicator={MobileCarryoverIndicator}
     >
-      {({ type, value, className: defaultClassName }, ringProgress) => {
-        const hasRing = ringProgress != null;
+      {({ type, value, status, className: defaultClassName }, ringProgress) => {
         const amount = (
           <PrivacyFilter>
             <AutoTextSize
               key={value}
               as={Text}
-              minFontSizePx={6}
-              maxFontSizePx={12}
+              {...AMOUNT_FONT}
               mode="oneline"
               className={cx(
                 defaultClassName,
                 css({
                   ...styles.tnum,
-                  maxWidth: columnWidth,
                   textAlign: 'right',
-                  fontSize: 12,
-                  // AutoTextSize rounds widths, so a fraction of a pixel can overflow
-                  ...(hasRing && { textOverflow: 'clip' }),
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: BALANCE_PILL_COLORS[status].color,
                 }),
               )}
             >
@@ -122,15 +135,10 @@ export function BalanceCell({
         return (
           <Button
             variant="bare"
-            style={{
-              ...PILL_STYLE,
-              // AutoTextSize leaves alignItems on the button, so set it back
-              ...(hasRing && { gap: 4, alignItems: 'center' }),
-              maxWidth: columnWidth,
-            }}
+            style={CELL_BUTTON_STYLE}
             onPress={onPress}
             aria-label={
-              hasRing && ariaLabel
+              ringProgress != null && ariaLabel
                 ? t('{{label}}, {{status}}', {
                     label: ariaLabel,
                     status: getGoalRingLabel(ringProgress, t),
@@ -138,22 +146,33 @@ export function BalanceCell({
                 : ariaLabel
             }
           >
-            {hasRing ? (
-              <>
-                <GoalProgressRing progress={ringProgress} />
-                {/* AutoTextSize sizes against its parent, so keep the ring out of it */}
-                <span
-                  style={{
-                    minWidth: 0,
-                    maxWidth: `calc(${columnWidth} - ${RING_RESERVE}px)`,
-                  }}
-                >
-                  {amount}
-                </span>
-              </>
-            ) : (
-              amount
-            )}
+            <View
+              data-testid="balance-pill"
+              style={{
+                maxWidth: '100%',
+                borderRadius: 14,
+                paddingBlock: 5,
+                paddingInline: 11,
+                backgroundColor: BALANCE_PILL_COLORS[status].backgroundColor,
+                // The goal ring sits inside the pill, before the amount
+                ...(ringProgress != null && {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                }),
+              }}
+            >
+              <FitAmountColumn column={2} text={format(value, type)} />
+              {ringProgress != null ? (
+                <>
+                  <GoalProgressRing progress={ringProgress} />
+                  {/* AutoTextSize sizes against its parent, so keep the ring out of it */}
+                  <span style={{ minWidth: 0 }}>{amount}</span>
+                </>
+              ) : (
+                amount
+              )}
+            </View>
           </Button>
         );
       }}

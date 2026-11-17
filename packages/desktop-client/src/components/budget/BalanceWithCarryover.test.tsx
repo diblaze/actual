@@ -259,17 +259,18 @@ describe('BalanceCell goal progress ring', () => {
     });
     expect(button.querySelector('svg')).not.toBeNull();
     expect(button).toHaveTextContent('400.00');
+    // The pill's colours follow the balance's state
     expect(within(button).getByText('400.00')).toHaveStyle({
-      color: theme.templateNumberUnderFunded,
+      color: theme.balanceWarningText,
     });
   });
 
   it.each([
-    ['without a goal', { goal: null }, theme.budgetNumberPositive],
+    ['without a goal', { goal: null }, theme.balancePositiveText],
     [
       'once funded',
       { budget: 65000, leftover: 65000 },
-      theme.templateNumberFunded,
+      theme.balancePositiveText,
     ],
   ])('draws no ring %s', (_, values, color) => {
     setSheetValues(values);
@@ -297,18 +298,19 @@ describe('Goals on income categories', () => {
   // Envelope budgets don't apply templates to income, so a goal found there was
   // left by a tracking budget
   it.each([
-    ['budget table', {}],
-    ['mobile budget', { isMobile: true }],
-    ['balance menu', { isSheetHeader: true }],
-  ])('ignores the goal of an envelope income category in the %s', (_, view) => {
-    setIncomeSheetValues();
-    renderBalance({ ...view, isIncome: true });
-    expect(screen.queryByRole('img')).toBeNull();
-    expect(screen.queryByRole('progressbar')).toBeNull();
-    expect(screen.getByText('1,200.00')).toHaveStyle({
-      color: theme.budgetNumberPositive,
-    });
-  });
+    ['budget table', {}, theme.budgetNumberPositive],
+    ['mobile budget', { isMobile: true }, theme.balancePositiveText],
+    ['balance menu', { isSheetHeader: true }, theme.budgetNumberPositive],
+  ])(
+    'ignores the goal of an envelope income category in the %s',
+    (_, view, color) => {
+      setIncomeSheetValues();
+      renderBalance({ ...view, isIncome: true });
+      expect(screen.queryByRole('img')).toBeNull();
+      expect(screen.queryByRole('progressbar')).toBeNull();
+      expect(screen.getByText('1,200.00')).toHaveStyle({ color });
+    },
+  );
 
   it('ignores the goal of an envelope income category in its received cell', () => {
     setIncomeSheetValues();
@@ -349,7 +351,7 @@ describe('Goals on income categories', () => {
         name: `Show transactions for Salary category, Underfunded, ${progress} of goal`,
       });
       expect(within(button).getByText('1,200.00')).toHaveStyle({
-        color: theme.templateNumberUnderFunded,
+        color: theme.balanceWarningText,
       });
     },
   );
@@ -359,7 +361,7 @@ describe('Goals on income categories', () => {
     renderBalance({ isMobile: true, isIncome: true, budgetType: 'tracking' });
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.getByText('1,200.00')).toHaveStyle({
-      color: theme.templateNumberFunded,
+      color: theme.balancePositiveText,
     });
   });
 });

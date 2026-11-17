@@ -26,23 +26,19 @@ export class CategoryMenuModal {
   }
 
   async close() {
-    await this.page.keyboard.press('Escape');
+    await this.heading.getByRole('button', { name: 'Close' }).click();
   }
 
   async editNotes() {
     await this.editNotesButton.click();
 
-    return new EditNotesModal(
-      this.page.getByRole('dialog', {
-        name: 'Modal dialog',
-      }),
-    );
+    return new EditNotesModal(this.page.getByRole('dialog').last());
   }
 
   async editAutomations() {
     await this.budgetAutomationsButton.click();
 
-    return this.page.getByRole('dialog', { name: 'Modal dialog' });
+    return this.page.getByRole('dialog').last();
   }
 
   async delete() {

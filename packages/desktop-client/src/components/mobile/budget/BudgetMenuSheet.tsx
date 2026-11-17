@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import type { MenuItemObject } from '@actual-app/components/menu';
@@ -16,9 +15,7 @@ import { MobileSheetNotes } from '#components/mobile/MobileSheetNotes';
 import { MobileSheetRow } from '#components/mobile/MobileSheetRow';
 import { MobileSheetSection } from '#components/mobile/MobileSheetSection';
 import { AmountInput } from '#components/mobile/transactions/AmountInput';
-import { CALCULATOR_KEYBOARD_HEIGHT } from '#components/mobile/transactions/CalculatorKeyboard';
 import { useCategory } from '#hooks/useCategory';
-import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useNotes } from '#hooks/useNotes';
 import type { Modal as ModalType } from '#modals/modalsSlice';
 
@@ -48,8 +45,6 @@ export function BudgetMenuSheet({
 }: BudgetMenuSheetProps) {
   const { t } = useTranslation();
   const { data: category } = useCategory(categoryId);
-  const isMobileCalculatorEnabled = useFeatureFlag('mobileCalculator');
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const notesId = `${categoryId}-${month}`;
   const notes = useNotes(notesId);
 
@@ -58,13 +53,7 @@ export function BudgetMenuSheet({
   }
 
   return (
-    <MobileSheet
-      name={name}
-      title={category.name}
-      wrapperStyle={{
-        paddingBottom: isCalculatorOpen ? CALCULATOR_KEYBOARD_HEIGHT : 0,
-      }}
-    >
+    <MobileSheet name={name} title={category.name}>
       {({ close }) => (
         <>
           <View
@@ -87,8 +76,6 @@ export function BudgetMenuSheet({
               value={integerToAmount(budgeted)}
               onEnter={close}
               onChange={amount => onUpdateBudget(amountToInteger(amount))}
-              onFocus={() => setIsCalculatorOpen(isMobileCalculatorEnabled)}
-              onBlur={() => setIsCalculatorOpen(false)}
               data-testid="budget-amount"
               variant="large"
             />

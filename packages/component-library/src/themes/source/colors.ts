@@ -28,7 +28,7 @@ export const colors = {
     midnight: 'gray150',
   },
   pageText: { light: { raw: '#272630' }, dark: 'navy150', midnight: 'gray100' },
-  pageTextLight: { light: 'navy500', dark: 'navy300', midnight: 'gray200' },
+  pageTextLight: { light: 'navy600', dark: 'navy300', midnight: 'gray200' },
   pageTextSubdued: { light: 'navy300', dark: 'navy500', midnight: 'gray400' },
   pageTextDark: { light: 'navy800', dark: 'navy100', midnight: 'gray100' },
   pageTextPositive: {
@@ -307,7 +307,7 @@ export const colors = {
     midnight: 'purple300',
   },
 
-  mobileViewTheme: { all: { ref: 'mobileHeaderBackground' } },
+  mobileViewTheme: { all: { ref: 'pageBackground' } },
   mobileConfigServerViewTheme: { all: 'purple500' },
 
   markdownNormal: {
@@ -354,7 +354,7 @@ export const colors = {
   buttonPrimaryBackground: {
     light: 'purple500',
     dark: 'purple400',
-    midnight: 'purple300',
+    midnight: 'purple400',
   },
   buttonPrimaryBackgroundHover: {
     light: 'purple300',
@@ -706,6 +706,75 @@ export const colors = {
   },
 
   overlayBackground: { all: { raw: 'rgba(0, 0, 0, 0.3)' } },
+
+  cardElevation: {
+    light: {
+      raw: '0 0 0 1px var(--palette-navy150), 0 1px 2px rgba(39, 38, 48, 0.06)',
+    },
+    dark: { raw: '0 0 0 1px var(--palette-navy800)' },
+    midnight: { raw: '0 0 0 1px var(--palette-gray700)' },
+  },
+  floatingElevation: {
+    light: { raw: '0 10px 28px rgba(39, 38, 48, 0.18)' },
+    dark: { raw: '0 12px 30px rgba(0, 0, 0, 0.55)' },
+    midnight: { raw: '0 12px 30px rgba(0, 0, 0, 0.55)' },
+  },
+  glassBackground: {
+    light: { raw: 'rgba(255, 255, 255, 0.88)' },
+    dark: { raw: 'rgba(36, 59, 83, 0.82)' },
+    midnight: { raw: 'rgba(36, 39, 51, 0.82)' },
+  },
+  glassBorder: {
+    light: { raw: 'rgba(98, 125, 152, 0.18)' },
+    dark: { raw: 'rgba(159, 179, 200, 0.18)' },
+    midnight: { raw: 'rgba(189, 197, 207, 0.18)' },
+  },
+  accentSubtleBackground: {
+    light: { raw: '#efe3fb' },
+    dark: { raw: '#2b1a4d' },
+    midnight: { raw: '#2b1a4d' },
+  },
+  accentSubtleText: {
+    light: 'purple600',
+    dark: 'purple200',
+    midnight: 'purple200',
+  },
+  balancePositiveBackground: {
+    light: 'green150',
+    dark: 'green800',
+    midnight: 'green800',
+  },
+  balancePositiveText: {
+    light: { raw: '#0e5c49' },
+    dark: { raw: '#e3fcf2' },
+    midnight: { raw: '#e3fcf2' },
+  },
+  balanceWarningBackground: {
+    light: 'orange200',
+    dark: 'orange800',
+    midnight: 'orange800',
+  },
+  balanceWarningText: {
+    light: { raw: '#5c4108' },
+    dark: { raw: '#fff6b8' },
+    midnight: { raw: '#fff6b8' },
+  },
+  balanceNegativeBackground: {
+    light: 'red100',
+    dark: 'red800',
+    midnight: 'red800',
+  },
+  balanceNegativeText: {
+    light: { raw: '#b81d2a' },
+    dark: 'red100',
+    midnight: 'red100',
+  },
+  balanceZeroBackground: {
+    light: 'navy100',
+    dark: 'navy800',
+    midnight: 'navy800',
+  },
+  balanceZeroText: { light: 'navy600', dark: 'navy300', midnight: 'navy300' },
 
   chartQual1: { all: 'chartQual1' },
   chartQual2: { all: 'chartQual2' },

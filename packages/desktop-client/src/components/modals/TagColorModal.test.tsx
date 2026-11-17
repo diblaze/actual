@@ -45,9 +45,10 @@ describe('TagColorModal', () => {
       within(dialog).getByRole('group', { name: 'Colors' }),
     ).getAllByRole('button');
     expect(swatches).toHaveLength(DEFAULT_COLOR_SET.length);
+    // Phone sheets carry a header with a Close button
     expect(
-      within(dialog).queryByRole('button', { name: 'Close' }),
-    ).not.toBeInTheDocument();
+      within(dialog).getByRole('button', { name: 'Close' }),
+    ).toBeInTheDocument();
   });
 
   it('selects no swatch when the tag uses the theme default', async () => {

@@ -42,8 +42,9 @@ export class SettingsPage {
 
     // Narrow layouts only show the settings nav on the settings landing page
     const viewport = this.page.viewportSize();
-    const isNarrow = viewport != null && viewport.width < 512;
-    if (isNarrow && !(await sectionLink.isVisible())) {
+    const isNarrow = viewport != null && viewport.width < 730;
+    // By URL: during a page transition the leaving page's Back still shows
+    if (isNarrow && new URL(this.page.url()).pathname !== '/settings') {
       await this.backButton.click();
     }
 

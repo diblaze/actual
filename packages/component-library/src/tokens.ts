@@ -45,13 +45,20 @@ export const spacing: Record<SpacingSize, number> = {
   xl: 24,
 };
 
-type RadiusSize = 'sm' | 'sheet' | 'pill';
+type RadiusSize = 'sm' | 'control' | 'card' | 'sheet' | 'pill';
 
 export const radius: Record<RadiusSize, number> = {
   sm: 4,
+  // Inputs and chips inside desktop cards
+  control: 8,
+  // Phone cards and bottom sheets
+  card: 16,
   sheet: 18,
   pill: 999,
 };
+
+// Smallest touch target on phones and tablets
+export const tapTarget = 44;
 
 // Standard component size vocabulary shared by Button, Text and Input.
 // Values are looked up per breakpoint group so components can render

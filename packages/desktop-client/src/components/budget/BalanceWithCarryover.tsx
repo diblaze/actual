@@ -55,9 +55,21 @@ export function CarryoverIndicator({ style }: CarryoverIndicatorProps) {
 
 type CellValueChildren = ComponentPropsWithoutRef<typeof CellValue>['children'];
 
+export type BalanceStatus = 'positive' | 'warning' | 'negative' | 'zero';
+
+// The pill colours follow the text colour, so the colour rule below stays
+// the one place that decides a balance's state
+const STATUS_BY_COLOR: Record<string, BalanceStatus> = {
+  [theme.warningText]: 'warning',
+  [theme.templateNumberUnderFunded]: 'warning',
+  [theme.budgetNumberNegative]: 'negative',
+  [theme.budgetNumberZero]: 'zero',
+};
+
 type ChildrenWithClassName = (
   props: Parameters<CellValueChildren>[0] & {
     className: string;
+    status: BalanceStatus;
   },
   /**
    * How much of the goal is funded, to draw the goal progress ring beside the
@@ -98,6 +110,12 @@ type BalanceWithCarryoverProps = Omit<
   /** Card balance a payment category does not hold */
   cardToPay?: number;
 };
+
+// Overspent only on a card: the card payment category pays it, so it does
+// not come out of next month's To Budget
+export function isCardOnlyOverspent(balance: number, creditDebt: number) {
+  return creditDebt > 0 && balance < 0 && balance + creditDebt >= 0;
+}
 
 export function BalanceWithCarryover({
   carryover,
@@ -148,7 +166,7 @@ export function BalanceWithCarryover({
     // A payment category short of its card balance is a warning too, unless
     // it is overspent: that is cash overspending, red like any other.
     (cardToPay > 0 && balanceValue >= 0) ||
-    (creditDebt > 0 && balanceValue < 0 && balanceValue + creditDebt >= 0)
+    isCardOnlyOverspent(balanceValue, creditDebt)
       ? { color: theme.warningText }
       : makeBalanceAmountStyle(
           balanceValue,
@@ -180,6 +198,9 @@ export function BalanceWithCarryover({
               name,
               value: balanceValue,
               className: getDefaultClassName(balanceValue),
+              status:
+                STATUS_BY_COLOR[getBalanceAmountStyle(balanceValue).color] ??
+                'positive',
             },
             ringProgress,
           )

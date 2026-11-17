@@ -12,6 +12,7 @@ import { closeModal } from '#modals/modalsSlice';
 import { useDispatch } from '#redux';
 
 import { EditSyncAccount } from './banksync/EditSyncAccount';
+import { ToBudgetMenuSheet } from './mobile/budget/ToBudgetSheetActions';
 import { AccountAutocompleteModal } from './modals/AccountAutocompleteModal';
 import { AccountGroupsModal } from './modals/AccountGroupsModal';
 import { AccountMenuModal } from './modals/AccountMenuModal';
@@ -25,6 +26,7 @@ import { CategoryAutocompleteModal } from './modals/CategoryAutocompleteModal';
 import { CategoryGroupAutocompleteModal } from './modals/CategoryGroupAutocompleteModal';
 import { CategoryGroupMenuModal } from './modals/CategoryGroupMenuModal';
 import { CategoryMenuModal } from './modals/CategoryMenuModal';
+import { CategorySheet } from './modals/CategorySheet';
 import { CloseAccountModal } from './modals/CloseAccountModal';
 import { ConfirmCategoryDeleteModal } from './modals/ConfirmCategoryDeleteModal';
 import { ConfirmDeleteModal } from './modals/ConfirmDeleteModal';
@@ -43,7 +45,6 @@ import { EditRuleModal } from './modals/EditRuleModal';
 import { EditUserFinanceApp } from './modals/EditUser';
 import { EnableBankingExternalMsgModal } from './modals/EnableBankingExternalMsgModal';
 import { EnableBankingInitialiseModal } from './modals/EnableBankingInitialiseModal';
-import { EnvelopeBalanceMenuModal } from './modals/EnvelopeBalanceMenuModal';
 import { EnvelopeBudgetMenuModal } from './modals/EnvelopeBudgetMenuModal';
 import { EnvelopeBudgetMonthMenuModal } from './modals/EnvelopeBudgetMonthMenuModal';
 import { EnvelopeBudgetSummaryModal } from './modals/EnvelopeBudgetSummaryModal';
@@ -66,6 +67,7 @@ import { ImportYNAB4Modal } from './modals/manager/ImportYNAB4Modal';
 import { ImportYNAB5Modal } from './modals/manager/ImportYNAB5Modal';
 import { ManageRulesModal } from './modals/ManageRulesModal';
 import { MergeUnusedPayeesModal } from './modals/MergeUnusedPayeesModal';
+import { MoreModal } from './modals/MoreModal';
 import { NewCategoryGroupModal } from './modals/NewCategoryGroupModal';
 import { NewCategoryModal } from './modals/NewCategoryModal';
 import { NotesModal } from './modals/NotesModal';
@@ -78,7 +80,6 @@ import { ScheduledTransactionMenuModal } from './modals/ScheduledTransactionMenu
 import { SelectLinkedAccountsModal } from './modals/SelectLinkedAccountsModal';
 import { SimpleFinInitialiseModal } from './modals/SimpleFinInitialiseModal';
 import { TagColorModal } from './modals/TagColorModal';
-import { TrackingBalanceMenuModal } from './modals/TrackingBalanceMenuModal';
 import { TrackingBudgetMenuModal } from './modals/TrackingBudgetMenuModal';
 import { TrackingBudgetMonthMenuModal } from './modals/TrackingBudgetMonthMenuModal';
 import { TrackingBudgetSummaryModal } from './modals/TrackingBudgetSummaryModal';
@@ -126,6 +127,9 @@ export function Modals() {
           return budgetId ? (
             <UnmigrateBudgetAutomationsModal key={name} {...modal.options} />
           ) : null;
+
+        case 'more':
+          return <MoreModal key={key} />;
 
         case 'keyboard-shortcuts':
           // don't show the hotkey help modal when a budget is not open
@@ -332,7 +336,7 @@ export function Modals() {
               key={key}
               name={monthUtils.sheetForMonth(modal.options.month)}
             >
-              <EnvelopeBalanceMenuModal {...modal.options} />
+              <CategorySheet name="envelope-balance-menu" {...modal.options} />
             </SheetNameProvider>
           );
 
@@ -343,6 +347,16 @@ export function Modals() {
               name={monthUtils.sheetForMonth(modal.options.month)}
             >
               <EnvelopeIncomeBalanceMenuModal {...modal.options} />
+            </SheetNameProvider>
+          );
+
+        case 'envelope-summary-to-budget-menu':
+          return (
+            <SheetNameProvider
+              key={key}
+              name={monthUtils.sheetForMonth(modal.options.month)}
+            >
+              <ToBudgetMenuSheet {...modal.options} />
             </SheetNameProvider>
           );
 
@@ -362,7 +376,7 @@ export function Modals() {
               key={key}
               name={monthUtils.sheetForMonth(modal.options.month)}
             >
-              <TrackingBalanceMenuModal {...modal.options} />
+              <CategorySheet name="tracking-balance-menu" {...modal.options} />
             </SheetNameProvider>
           );
 

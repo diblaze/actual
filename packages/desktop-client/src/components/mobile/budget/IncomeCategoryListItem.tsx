@@ -4,12 +4,10 @@ import { GridListItem } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgCheveronRight } from '@actual-app/components/icons/v1';
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
-import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import * as monthUtils from '@actual-app/core/shared/months';
 import type { CategoryEntity } from '@actual-app/core/types/models';
 
 import { useNavigate } from '#hooks/useNavigate';
@@ -20,7 +18,7 @@ import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
 import { BalanceCell } from './BalanceCell';
 import { BudgetCell } from './BudgetCell';
-import { getColumnWidth, ROW_HEIGHT } from './BudgetTable';
+import { CELL_STYLE, ROW_HEIGHT, ROW_SEPARATOR, rowGrid } from './BudgetTable';
 
 type IncomeCategoryNameProps = {
   category: CategoryEntity;
@@ -28,19 +26,8 @@ type IncomeCategoryNameProps = {
 };
 
 function IncomeCategoryName({ category, onEdit }: IncomeCategoryNameProps) {
-  const sidebarColumnWidth = getColumnWidth({
-    isSidebar: true,
-    offset: -10,
-  });
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        width: sidebarColumnWidth,
-      }}
-    >
+    <View style={{ height: '100%', minWidth: 0, justifyContent: 'center' }}>
       {/* Hidden drag button */}
       <Button
         slot="drag"
@@ -55,34 +42,24 @@ function IncomeCategoryName({ category, onEdit }: IncomeCategoryNameProps) {
       <Button
         variant="bare"
         style={{
-          maxWidth: sidebarColumnWidth,
+          height: '100%',
+          justifyContent: 'flex-start',
+          padding: 0,
+          borderRadius: 0,
         }}
         onPress={() => onEdit?.(category.id)}
       >
-        <View
+        <Text
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
+            ...styles.lineClamp(2),
+            fontSize: 16,
+            lineHeight: 1.25,
+            textAlign: 'left',
           }}
+          data-testid="category-name"
         >
-          <Text
-            style={{
-              ...styles.lineClamp(2),
-              width: sidebarColumnWidth,
-              textAlign: 'left',
-              ...styles.smallText,
-            }}
-            data-testid="category-name"
-          >
-            {category.name}
-          </Text>
-          <SvgCheveronRight
-            style={{ flexShrink: 0, color: theme.tableTextSubdued }}
-            width={14}
-            height={14}
-          />
-        </View>
+          {category.name}
+        </Text>
       </Button>
     </View>
   );
@@ -93,6 +70,7 @@ type IncomeCategoryCellsProps = {
   month: string;
   onBudgetAction: (month: string, action: string, args: unknown) => void;
   onPress: () => void;
+  showSpent: boolean;
 };
 
 function IncomeCategoryCells({
@@ -100,9 +78,9 @@ function IncomeCategoryCells({
   month,
   onBudgetAction,
   onPress,
+  showSpent,
 }: IncomeCategoryCellsProps) {
   const { t } = useTranslation();
-  const columnWidth = getColumnWidth();
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
 
   const budgeted =
@@ -115,22 +93,11 @@ function IncomeCategoryCells({
       ? trackingBudget.catSumAmount(category.id)
       : envelopeBudget.catSumAmount(category.id);
 
+  // Budgeted (tracking only) and Received sit under Budgeted and Balance
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-      }}
-    >
-      {budgetType === 'tracking' && (
-        <View
-          style={{
-            width: columnWidth,
-            justifyContent: 'center',
-            alignItems: 'flex-end',
-          }}
-        >
+    <>
+      <View style={CELL_STYLE}>
+        {budgetType === 'tracking' && (
           <BudgetCell
             binding={budgeted}
             type="financial"
@@ -138,16 +105,10 @@ function IncomeCategoryCells({
             month={month}
             onBudgetAction={onBudgetAction}
           />
-        </View>
-      )}
-
-      <View
-        style={{
-          width: columnWidth,
-          justifyContent: 'center',
-          alignItems: 'flex-end',
-        }}
-      >
+        )}
+      </View>
+      {showSpent && <View />}
+      <View style={CELL_STYLE}>
         <BalanceCell
           binding={balance}
           category={category}
@@ -163,7 +124,7 @@ function IncomeCategoryCells({
           }
         />
       </View>
-    </View>
+    </>
   );
 }
 
@@ -185,6 +146,7 @@ export function IncomeCategoryListItem({
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
+  const { isMediumWidth } = useResponsive();
   const balanceMenuModalName = `envelope-income-balance-menu`;
 
   const onShowActivity = useCallback(() => {
@@ -242,33 +204,25 @@ export function IncomeCategoryListItem({
     <GridListItem
       textValue={category.name}
       data-testid="category-row"
+      className={ROW_SEPARATOR}
       {...props}
     >
       <View
         style={{
+          ...rowGrid(isMediumWidth),
           height: ROW_HEIGHT,
-          borderColor: theme.tableBorder,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingLeft: 5,
-          paddingRight: 5,
-          borderBottomWidth: 1,
           opacity: category.hidden ? 0.5 : undefined,
-          backgroundColor: monthUtils.isCurrentMonth(month)
-            ? theme.budgetCurrentMonth
-            : theme.budgetOtherMonth,
         }}
       >
         <IncomeCategoryName category={category} onEdit={onEdit} />
         <IncomeCategoryCells
-          key={`${category.id}`}
           category={category}
           month={month}
           onBudgetAction={onBudgetAction}
           onPress={
             budgetType === 'envelope' ? onOpenBalanceMenu : onShowActivity
           }
+          showSpent={isMediumWidth}
         />
       </View>
     </GridListItem>

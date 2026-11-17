@@ -18,7 +18,8 @@ export function FloatingActionBar({ style, children }: FloatingActionBarProps) {
         margin: '0 10px',
         width: '95vw',
         height: 60,
-        zIndex: 100,
+        // Above the bottom navigation, which it replaces while selecting.
+        zIndex: 101,
         borderRadius: 8,
         border: `1px solid ${theme.floatingActionBarBorder}`,
         ...style,

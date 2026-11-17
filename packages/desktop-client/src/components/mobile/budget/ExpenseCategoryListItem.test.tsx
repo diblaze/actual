@@ -3,15 +3,17 @@ import { MemoryRouter } from 'react-router';
 
 import { initServer } from '@actual-app/core/platform/client/connection';
 import type { CategoryEntity } from '@actual-app/core/types/models';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { CategorySheet } from '#components/modals/CategorySheet';
 import { SheetNameProvider } from '#hooks/useSheetName';
 import {
   configureTestAppStore,
   createTestQueryClient,
   TestProviders,
 } from '#mocks';
+import { mergeSyncedPrefs } from '#prefs/prefsSlice';
 
 import { ExpenseCategoryListItem } from './ExpenseCategoryListItem';
 
@@ -22,8 +24,17 @@ vi.mock(
 vi.mock('@actual-app/components/hooks/useResponsive', () => ({
   useResponsive: () => ({ isNarrowWidth: true }),
 }));
+// 250.00 short of a 650.00 goal, with 500.00 in To Budget
+const sheetValues: Record<string, number> = {
+  'goal-groceries': 65000,
+  'budget-groceries': 40000,
+  'leftover-groceries': 40000,
+  'to-budget': 50000,
+};
+
 vi.mock('#hooks/useSheetValue', () => ({
-  useSheetValue: () => null,
+  useSheetValue: (binding: string | { name: string }) =>
+    sheetValues[typeof binding === 'string' ? binding : binding.name] ?? null,
 }));
 // Only the balance cell matters here; the other cells need schedule and
 // spreadsheet providers that are unrelated to the balance menu
@@ -42,6 +53,7 @@ function renderItem() {
     vi.fn<(month: string, action: string, args: unknown) => void>();
   const client = createTestQueryClient();
   const store = configureTestAppStore({ queryClient: client });
+  store.dispatch(mergeSyncedPrefs({ 'flags.goalTemplatesEnabled': 'true' }));
   initServer({
     'get-categories': async () => ({ grouped: [], list: [category] }),
     query: async () => ({ data: [], dependencies: [] }),
@@ -56,8 +68,6 @@ function renderItem() {
                 value={item}
                 month="2024-01"
                 isHidden={false}
-                show3Columns
-                showBudgetedColumn
                 onEditCategory={vi.fn()}
                 onBudgetAction={onBudgetAction}
               />
@@ -67,16 +77,16 @@ function renderItem() {
       </MemoryRouter>
     </TestProviders>,
   );
-  return { onBudgetAction, store };
+  return { onBudgetAction, store, client };
 }
 
 describe('ExpenseCategoryListItem', () => {
-  it('funds the goal from To Budget through the envelope balance menu', async () => {
-    const { onBudgetAction, store } = renderItem();
+  it('funds the goal from To Budget through the category sheet', async () => {
+    const { onBudgetAction, store, client } = renderItem();
 
     await userEvent.click(
       await screen.findByRole('button', {
-        name: 'Open balance menu for Groceries category',
+        name: /^Open balance menu for Groceries category/,
       }),
     );
 
@@ -87,7 +97,17 @@ describe('ExpenseCategoryListItem', () => {
     const { options } = modal;
     expect(options.month).toBe('2024-01');
 
-    act(() => options.onFundGoal?.(25000));
+    // The sheet the modal opens, as Modals renders it
+    render(
+      <TestProviders queryClient={client} store={store}>
+        <SheetNameProvider name="budget202401">
+          <CategorySheet name="envelope-balance-menu" {...options} />
+        </SheetNameProvider>
+      </TestProviders>,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Fund goal from To Budget' }),
+    );
 
     expect(onBudgetAction).toHaveBeenCalledExactlyOnceWith(
       '2024-01',

@@ -1,8 +1,11 @@
+import { generateAccount } from '@actual-app/core/mocks';
 import { initServer } from '@actual-app/core/platform/client/connection';
 import type { CategoryEntity } from '@actual-app/core/types/models';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { accountQueries } from '#accounts';
+import { categoryQueries } from '#budget';
 import { SheetNameProvider } from '#hooks/useSheetName';
 import {
   configureTestAppStore,
@@ -11,7 +14,7 @@ import {
 } from '#mocks';
 import { mergeSyncedPrefs } from '#prefs/prefsSlice';
 
-import { EnvelopeBalanceMenuModal } from './EnvelopeBalanceMenuModal';
+import { CategorySheet } from './CategorySheet';
 
 vi.mock(
   '@actual-app/core/platform/client/connection',
@@ -75,7 +78,9 @@ function renderModal({
   render(
     <TestProviders queryClient={client} store={store}>
       <SheetNameProvider name="budget202401">
-        <EnvelopeBalanceMenuModal
+        <CategorySheet
+          name="envelope-balance-menu"
+          month="2024-01"
           categoryId={category.id}
           onFundGoal={onFundGoal}
         />
@@ -87,7 +92,7 @@ function renderModal({
 
 const fundGoalLabel = 'Fund goal from To Budget';
 
-describe('EnvelopeBalanceMenuModal', () => {
+describe('CategorySheet goal', () => {
   beforeEach(() => {
     setSheetValues();
   });
@@ -187,5 +192,60 @@ describe('EnvelopeBalanceMenuModal', () => {
     expect(await screen.findByText('Overfunded (400.00)')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(fundGoalLabel)).not.toBeInTheDocument();
+  });
+});
+
+describe('CategorySheet edit category row', () => {
+  const visa = { ...generateAccount('Visa'), id: 'visa' };
+
+  function renderSheet(shown: CategoryEntity) {
+    const client = createTestQueryClient();
+    const store = configureTestAppStore({ queryClient: client });
+    store.dispatch(
+      mergeSyncedPrefs({
+        'flags.ccPaymentCategories': 'true',
+        budgetType: 'envelope',
+      }),
+    );
+    // Seeded rather than served, as in CategoryMenuModal.test
+    client.setQueryData(accountQueries.lists(), [visa]);
+    client.setQueryData(categoryQueries.lists(), {
+      grouped: [],
+      list: [shown],
+    });
+    initServer({ query: async () => ({ data: [], dependencies: [] }) });
+    render(
+      <TestProviders queryClient={client} store={store}>
+        <SheetNameProvider name="budget202401">
+          <CategorySheet
+            name="envelope-balance-menu"
+            month="2024-01"
+            categoryId={shown.id}
+            onEditCategory={vi.fn()}
+          />
+        </SheetNameProvider>
+      </TestProviders>,
+    );
+  }
+
+  it('offers rename or hide for a normal category', async () => {
+    setSheetValues();
+    renderSheet(category);
+
+    expect(await screen.findByText('Rename or hide')).toBeInTheDocument();
+  });
+
+  it('offers edit category for a card payment category', async () => {
+    setSheetValues();
+    renderSheet({
+      id: 'visa-payment',
+      name: 'Visa',
+      group: 'cards',
+      is_income: false,
+      payment_account: visa.id,
+    });
+
+    expect(await screen.findByText('Edit category')).toBeInTheDocument();
+    expect(screen.queryByText('Rename or hide')).not.toBeInTheDocument();
   });
 });

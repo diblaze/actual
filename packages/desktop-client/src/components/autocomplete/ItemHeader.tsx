@@ -1,11 +1,14 @@
 import React from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, HTMLAttributes } from 'react';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 
-type ItemHeaderProps = {
+type ItemHeaderProps = Pick<
+  HTMLAttributes<HTMLDivElement>,
+  'role' | 'aria-level'
+> & {
   title: string;
   style?: CSSProperties;
   type?: string;

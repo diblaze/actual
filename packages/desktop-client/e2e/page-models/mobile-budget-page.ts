@@ -19,13 +19,12 @@ export class MobileBudgetPage {
   readonly nextMonthButton: Locator;
   readonly budgetPageMenuButton: Locator;
   readonly budgetTableHeader: Locator;
+  readonly toBudgetCard: Locator;
   readonly toBudgetButton: Locator;
   readonly overbudgetedButton: Locator;
   readonly savedButton: Locator;
   readonly projectedSavingsButton: Locator;
   readonly overspentButton: Locator;
-  readonly budgetedHeaderButton: Locator;
-  readonly spentHeaderButton: Locator;
   readonly budgetTable: Locator;
   readonly categoryRows: Locator;
   readonly categoryNames: Locator;
@@ -37,12 +36,13 @@ export class MobileBudgetPage {
 
     // Page header locators
 
+    // The month is the large title; Previous and Next sit above it
     this.heading = page.getByRole('heading');
-    this.previousMonthButton = this.heading.getByRole('button', {
+    this.previousMonthButton = page.getByRole('button', {
       name: 'Previous month',
     });
     this.selectedBudgetMonthButton = this.heading.locator('button[data-month]');
-    this.nextMonthButton = this.heading.getByRole('button', {
+    this.nextMonthButton = page.getByRole('button', {
       name: 'Next month',
     });
     this.budgetPageMenuButton = page.getByRole('button', {
@@ -51,7 +51,9 @@ export class MobileBudgetPage {
 
     // Budget table locators
 
+    // Banners and the To budget card above the groups
     this.budgetTableHeader = page.getByTestId('budget-table-header');
+    this.toBudgetCard = this.budgetTableHeader.getByTestId('to-budget-card');
 
     // Envelope budget summary buttons
     this.toBudgetButton = this.budgetTableHeader.getByRole('button', {
@@ -70,13 +72,6 @@ export class MobileBudgetPage {
     });
     this.overspentButton = this.budgetTableHeader.getByRole('button', {
       name: 'Overspent',
-    });
-
-    this.budgetedHeaderButton = this.budgetTableHeader.getByRole('button', {
-      name: 'Budgeted',
-    });
-    this.spentHeaderButton = this.budgetTableHeader.getByRole('button', {
-      name: 'Spent',
     });
 
     this.budgetTable = page.getByTestId('budget-table');
@@ -108,22 +103,13 @@ export class MobileBudgetPage {
     await this.budgetTable.waitFor(...options);
   }
 
-  async toggleVisibleColumns({
-    maxAttempts = 3,
-  }: { maxAttempts?: number } = {}) {
-    for (let i = 0; i < maxAttempts; i++) {
-      if (await this.budgetedHeaderButton.isVisible()) {
-        await this.budgetedHeaderButton.click();
-        return;
-      }
-      if (await this.spentHeaderButton.isVisible()) {
-        await this.spentHeaderButton.click();
-        return;
-      }
-      await this.page.waitForTimeout(1000);
-    }
-
-    throw new Error('Budgeted/Spent columns could not be located on the page.');
+  // A group's card: its heading (name, totals) and its category rows
+  categoryGroup(categoryGroupName: string) {
+    return this.budgetTable.getByTestId('category-group').filter({
+      has: this.page
+        .getByTestId('category-group-name')
+        .getByText(categoryGroupName, { exact: true }),
+    });
   }
 
   async getSelectedMonth() {
@@ -162,7 +148,7 @@ export class MobileBudgetPage {
       await this.#getButtonForCategoryGroup(categoryGroupName);
     await categoryGroupButton.click();
 
-    return new CategoryGroupMenuModal(this.page.getByRole('dialog'));
+    return new CategoryGroupMenuModal(this.page.getByRole('dialog').last());
   }
 
   async getCategoryNameForRow(idx: number) {
@@ -180,58 +166,55 @@ export class MobileBudgetPage {
     });
   }
 
+  // The name opens the category sheet; its "Rename or hide" opens the menu
   async openCategoryMenu(categoryName: string | RegExp) {
     const categoryButton = await this.#getButtonForCategory(categoryName);
     await categoryButton.click();
+    await this.page
+      .getByRole('dialog')
+      .last()
+      .getByRole('button', { name: 'Rename or hide' })
+      .click();
 
-    return new CategoryMenuModal(this.page.getByRole('dialog'));
+    return new CategoryMenuModal(this.page.getByRole('dialog').last());
   }
 
-  async #getButtonForCell(
-    buttonType: 'Budgeted' | 'Spent',
-    categoryName: string,
-  ) {
-    const buttonSelector =
-      buttonType === 'Budgeted'
-        ? `Open budget menu for ${categoryName} category`
-        : `Show transactions for ${categoryName} category`;
-
-    let button = this.budgetTable.getByRole('button', { name: buttonSelector });
-
-    if (await button.isVisible()) {
-      return button;
-    }
-
-    await this.toggleVisibleColumns();
-    button = this.budgetTable.getByRole('button', { name: buttonSelector });
+  async getButtonForBudgeted(categoryName: string) {
+    const button = this.budgetTable.getByRole('button', {
+      name: `Open budget menu for ${categoryName} category`,
+    });
 
     if (await button.isVisible()) {
       return button;
     }
 
     throw new Error(
-      `${buttonType} button for category ${categoryName} could not be located on the page.`,
+      `Budgeted button for category ${categoryName} could not be located on the page.`,
     );
   }
 
-  async getButtonForBudgeted(categoryName: string) {
-    return await this.#getButtonForCell('Budgeted', categoryName);
-  }
-
-  async getButtonForSpent(categoryName: string) {
-    return await this.#getButtonForCell('Spent', categoryName);
+  // Phone rows show Budgeted and Balance; Spent lives in the category sheet
+  async getSpentAmount(categoryName: string) {
+    const balanceMenuModal = await this.openBalanceMenu(categoryName);
+    const spent = await balanceMenuModal.locator
+      .getByTestId('sheet-spent')
+      .textContent();
+    await balanceMenuModal.close();
+    return spent;
   }
 
   async openBudgetMenu(categoryName: string) {
     const budgetedButton = await this.getButtonForBudgeted(categoryName);
     await budgetedButton.click();
 
-    return new BudgetMenuModal(this.page.getByRole('dialog'));
+    return new BudgetMenuModal(this.page.getByRole('dialog').last());
   }
 
   async openSpentPage(categoryName: string) {
-    const spentButton = await this.getButtonForSpent(categoryName);
-    await spentButton.click();
+    const balanceMenuModal = await this.openBalanceMenu(categoryName);
+    await balanceMenuModal.locator
+      .getByRole('button', { name: 'Show transactions' })
+      .click();
 
     return new MobileAccountPage(this.page);
   }
@@ -243,7 +226,7 @@ export class MobileBudgetPage {
 
     if (await balanceButton.isVisible()) {
       await balanceButton.click();
-      return new BalanceMenuModal(this.page.getByRole('dialog'));
+      return new BalanceMenuModal(this.page.getByRole('dialog').last());
     } else {
       throw new Error(
         `Balance button for category ${categoryName} not found or not visible.`,
@@ -312,7 +295,7 @@ export class MobileBudgetPage {
     }
     await budgetSummaryButton.click();
 
-    return new EnvelopeBudgetSummaryModal(this.page.getByRole('dialog'));
+    return new EnvelopeBudgetSummaryModal(this.page.getByRole('dialog').last());
   }
 
   async #getButtonForTrackingBudgetSummary({
@@ -338,6 +321,6 @@ export class MobileBudgetPage {
     }
     await budgetSummaryButton.click();
 
-    return new TrackingBudgetSummaryModal(this.page.getByRole('dialog'));
+    return new TrackingBudgetSummaryModal(this.page.getByRole('dialog').last());
   }
 }

@@ -21,6 +21,7 @@ import { useDispatch, useSelector } from '#redux';
 
 import { Link } from './common/Link';
 import { MODAL_Z_INDEX } from './common/Modal';
+import { MOBILE_NAV_HEIGHT } from './mobile/MobileNavTabs';
 
 // Notification stacking configuration
 const MAX_VISIBLE_NOTIFICATIONS = 3; // Maximum number of notifications visible in the stack
@@ -383,7 +384,9 @@ export function Notifications({ style }: { style?: CSSProperties }) {
     <View
       style={{
         position: 'fixed',
-        bottom: notificationInset?.bottom || 20,
+        bottom:
+          notificationInset?.bottom ||
+          (isNarrowWidth ? `calc(${MOBILE_NAV_HEIGHT} + 8px)` : 20),
         top: notificationInset?.top,
         right: notificationInset?.right || 13,
         left: notificationInset?.left || (isNarrowWidth ? 13 : undefined),

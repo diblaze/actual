@@ -251,6 +251,7 @@ const AmountInput = memo(function AmountInput({
 export type FocusableAmountInputProps = Omit<AmountInputProps, 'onFocus'> & {
   sign?: '+' | '-';
   zeroSign?: '+' | '-';
+  hideSignToggle?: boolean;
   focused?: boolean;
   disabled?: boolean;
   focusedStyle?: CSSProperties;
@@ -264,6 +265,7 @@ export const FocusableAmountInput = memo(function FocusableAmountInput({
   value,
   sign,
   zeroSign,
+  hideSignToggle = false,
   focused,
   disabled,
   textStyle,
@@ -301,8 +303,11 @@ export const FocusableAmountInput = memo(function FocusableAmountInput({
   useEffect(() => {
     if (sign) {
       setIsNegative(sign === '-');
-    } else if (value > 0 || (zeroSign !== '-' && value === 0)) {
+    } else if (value > 0) {
       setIsNegative(false);
+    } else if (value === 0) {
+      // Follow zeroSign both ways so a Money out/in switch at 0 sticks
+      setIsNegative(zeroSign === '-');
     }
   }, [sign, value, zeroSign]);
 
@@ -343,7 +348,7 @@ export const FocusableAmountInput = memo(function FocusableAmountInput({
       />
 
       <View>
-        {!focused && (
+        {!focused && !hideSignToggle && (
           <Button
             style={{
               position: 'absolute',

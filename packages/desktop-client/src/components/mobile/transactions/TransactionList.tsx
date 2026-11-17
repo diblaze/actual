@@ -27,6 +27,7 @@ import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { validForMerge } from '@actual-app/core/shared/merge';
 import * as monthUtils from '@actual-app/core/shared/months';
@@ -40,6 +41,7 @@ import type {
 } from '@actual-app/core/types/models';
 
 import { FloatingActionBar } from '#components/mobile/FloatingActionBar';
+import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
 import { useAccounts } from '#hooks/useAccounts';
 import { useCategoriesById } from '#hooks/useCategories';
 import { useLocale } from '#hooks/useLocale';
@@ -52,6 +54,7 @@ import { useUndo } from '#hooks/useUndo';
 import { setNotificationInset } from '#notifications/notificationsSlice';
 import { useDispatch } from '#redux';
 
+import { formatSignedAmount } from './formatSignedAmount';
 import { ROW_HEIGHT, TransactionListItem } from './TransactionListItem';
 
 const NOTIFICATION_BOTTOM_INSET = 75;
@@ -107,25 +110,33 @@ export function TransactionList({
   const locale = useLocale();
   const { t } = useTranslation();
   const sections = useMemo(() => {
-    // Group by date. We can assume transactions is ordered
+    // All scheduled previews go under one Upcoming section, posted
+    // transactions are grouped by date. We can assume transactions is ordered
     const sections: {
       id: string;
       date: TransactionEntity['date'];
+      isPreview: boolean;
+      total: IntegerAmount;
       transactions: TransactionEntity[];
     }[] = [];
     transactions.forEach(transaction => {
-      if (
-        sections.length === 0 ||
-        transaction.date !== sections[sections.length - 1].date
-      ) {
+      const isPreview = isPreviewId(transaction.id);
+      const id = isPreview ? 'preview' : transaction.date;
+      if (sections.length === 0 || sections[sections.length - 1].id !== id) {
         sections.push({
-          id: `${isPreviewId(transaction.id) ? 'preview/' : ''}${transaction.date}`,
+          id,
           date: transaction.date,
+          isPreview,
+          total: 0,
           transactions: [],
         });
       }
 
-      sections[sections.length - 1].transactions.push(transaction);
+      const section = sections[sections.length - 1];
+      section.transactions.push(transaction);
+      if (!transaction.is_child) {
+        section.total += transaction.amount;
+      }
     });
     return sections;
   }, [transactions]);
@@ -180,7 +191,12 @@ export function TransactionList({
             selectionMode={
               selectedTransactions.size > 0 ? 'multiple' : 'single'
             }
-            style={{ flex: 1, overflow: 'auto' }}
+            // Rows scroll under the floating Add button and tab bar
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              paddingBottom: MOBILE_NAV_HEIGHT,
+            }}
             selectedKeys={selectedTransactions}
             dependencies={[
               selectedTransactions,
@@ -213,20 +229,35 @@ export function TransactionList({
               <ListBoxSection>
                 <Header
                   style={{
-                    ...styles.smallText,
-                    backgroundColor: theme.pageBackground,
-                    color: theme.tableHeaderText,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    backgroundColor: theme.tableHeaderBackground,
+                    color: theme.pageTextLight,
+                    borderTop: `1px solid ${theme.tableBorder}`,
+                    borderBottom: `1px solid ${theme.tableBorder}`,
                     display: 'flex',
-                    justifyContent: 'center',
-                    paddingBottom: 4,
-                    paddingTop: 4,
+                    justifyContent: 'space-between',
+                    padding: `${spacing.sm}px ${spacing.lg}px`,
                     position: 'sticky',
                     top: '0',
                     width: '100%',
                     zIndex: 10,
                   }}
                 >
-                  {monthUtils.format(section.date, 'MMMM dd, yyyy', locale)}
+                  <span>
+                    {section.isPreview
+                      ? t('Upcoming')
+                      : monthUtils.format(
+                          section.date,
+                          'MMMM dd, yyyy',
+                          locale,
+                        )}
+                  </span>
+                  {!section.isPreview && (
+                    <span data-testid="section-total" style={styles.tnum}>
+                      {formatSignedAmount(section.total)}
+                    </span>
+                  )}
                 </Header>
                 <Collection
                   items={section.transactions.filter(

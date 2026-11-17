@@ -81,7 +81,8 @@ test.describe('Mobile Accounts', () => {
     const transactionPage = new MobileTransactionEntryPage(page);
     await transactionPage.waitFor();
 
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    // The editor is a sheet over the register; Cancel takes it back
+    await transactionPage.cancelButton.click();
     await accountPage.waitFor();
 
     await expect(accountPage.searchBox).toHaveValue('Kroger');

@@ -1,4 +1,12 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ComponentPropsWithoutRef,
   ComponentPropsWithRef,
@@ -39,12 +47,8 @@ import { useDispatch } from '#redux';
 
 export const MODAL_Z_INDEX = 3000;
 
-const mobileSheetContainerStyle: CSSProperties = {
-  minWidth: '100%',
-  maxWidth: '100%',
-  borderRadius: `${radius.sheet}px ${radius.sheet}px 0 0`,
-  ...styles.shadowSheet,
-};
+// Lets ModalTitle mark its text as the dialog's accessible name.
+const ModalTitleIdContext = createContext<string | undefined>(undefined);
 
 const SHEET_EXIT_MS = 180;
 
@@ -88,11 +92,12 @@ const mobileSheetHandleStyle: CSSProperties = {
 };
 
 type ModalProps = ComponentPropsWithRef<typeof ReactAriaModal> & {
-  presentation?: 'dialog' | 'sheet';
   ariaLabelledBy?: string;
   name: string;
   isLoading?: boolean;
   noAnimation?: boolean;
+  // Long-list pickers fill the phone screen instead of opening as a sheet.
+  fullScreenOnNarrow?: boolean;
   style?: CSSProperties;
   onClose?: () => void;
   wrapperProps?: {
@@ -107,20 +112,23 @@ export const Modal = ({
   name,
   isLoading = false,
   noAnimation = false,
+  fullScreenOnNarrow = false,
   style,
   children,
   onClose,
   wrapperProps,
   containerProps,
-  presentation = 'dialog',
   ariaLabelledBy,
   ...props
 }: ModalProps) => {
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
-  const isSheet = presentation === 'sheet' && isNarrowWidth;
+  // Every phone dialog is a bottom sheet; full-screen pickers have no handle
+  const isSheet = isNarrowWidth;
+  const hasHandle = isSheet && !fullScreenOnNarrow;
   const viewport = useVisualViewport();
   const { enableScope, disableScope } = useHotkeysContext();
+  const titleId = useId();
 
   // This deactivates any key handlers in the "app" scope
   useEffect(() => {
@@ -165,7 +173,7 @@ export const Modal = ({
   };
 
   const sheetRef = useSwipeToDismiss({
-    isEnabled: isSheet,
+    isEnabled: hasHandle,
     onDismiss: () => {
       setIsOpen(false);
       handleOnClose();
@@ -217,6 +225,11 @@ export const Modal = ({
               : { alignItems: 'center', justifyContent: 'center' }),
             height: 'var(--visual-viewport-height)',
             overflowY: 'auto',
+            // A sheet moves up while the calculator keypad is open
+            ...(isSheet && {
+              paddingBottom: 'var(--calculator-keyboard-height, 0px)',
+              transition: 'padding-bottom 100ms', // ds-allow-hardcode: keypad slide
+            }),
             ...wrapperProps?.style,
           }}
         >
@@ -226,8 +239,10 @@ export const Modal = ({
           >
             {modalProps => (
               <Dialog
-                aria-label={ariaLabelledBy ? undefined : t('Modal dialog')}
-                aria-labelledby={ariaLabelledBy}
+                // The title names the dialog when rendered; aria-label is
+                // the fallback when no element carries the id.
+                aria-labelledby={ariaLabelledBy ?? titleId}
+                aria-label={t('Modal dialog')}
                 className={css(styles.lightScrollbar)}
                 style={{
                   outline: 'none', // remove focus outline
@@ -241,30 +256,62 @@ export const Modal = ({
                     flex: 1,
                     padding: 10,
                     willChange: isSheet ? undefined : 'opacity, transform',
-                    maxWidth: '90vw',
-                    minWidth: '90vw',
                     maxHeight: 'calc(var(--visual-viewport-height) * 0.9)',
                     minHeight: 0,
-                    borderRadius: 6,
                     //border: '1px solid ' + theme.modalBorder,
                     color: theme.pageText,
-                    backgroundColor: theme.modalBackground,
+                    // Phone sheets share the page surface their cards sit on
+                    backgroundColor: isSheet
+                      ? theme.pageBackground
+                      : theme.modalBackground,
                     opacity: isHidden ? 0 : 1,
-                    [`@media (min-width: ${tokens.breakpoint_small})`]: {
-                      minWidth: tokens.breakpoint_small,
-                    },
+                    ...(isSheet
+                      ? {
+                          borderTopLeftRadius: radius.sheet,
+                          borderTopRightRadius: radius.sheet,
+                          paddingBottom:
+                            'calc(10px + env(safe-area-inset-bottom))', // ds-allow-hardcode: Modal padding
+                        }
+                      : {
+                          maxWidth: '90vw',
+                          minWidth: '90vw',
+                          borderRadius: 6,
+                          [`@media (min-width: ${tokens.breakpoint_small})`]: {
+                            minWidth: tokens.breakpoint_small,
+                          },
+                        }),
                     overflowY: 'auto',
                     ...styles.shadowLarge,
-                    ...(isSheet && mobileSheetContainerStyle),
                     ...containerProps?.style,
+                    // Bottom sheets always span the screen, whatever width
+                    // the dialog asks for on desktop.
+                    ...(isSheet && {
+                      width: '100%',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                    }),
+                    ...(isSheet &&
+                      fullScreenOnNarrow && {
+                        height: 'var(--visual-viewport-height)',
+                        maxHeight: 'var(--visual-viewport-height)',
+                        borderRadius: 0,
+                        paddingTop: 'calc(10px + env(safe-area-inset-top))', // ds-allow-hardcode: Modal padding
+                      }),
                   }}
                 >
-                  {isSheet && <View style={mobileSheetHandleStyle} />}
+                  {hasHandle && (
+                    <View
+                      data-testid="sheet-handle"
+                      style={mobileSheetHandleStyle}
+                    />
+                  )}
                   <View style={{ paddingTop: 0, flex: 1, flexShrink: 0 }}>
                     <ErrorBoundary FallbackComponent={FeatureErrorFallback}>
-                      {typeof children === 'function'
-                        ? children(modalProps)
-                        : children}
+                      <ModalTitleIdContext.Provider value={titleId}>
+                        {typeof children === 'function'
+                          ? children(modalProps)
+                          : children}
+                      </ModalTitleIdContext.Provider>
                     </ErrorBoundary>
                   </View>
                   {isLoading && (
@@ -512,6 +559,7 @@ export function ModalTitle({
   onTitleUpdate,
   shrinkOnOverflow = false,
 }: ModalTitleProps) {
+  const titleId = useContext(ModalTitleIdContext);
   const [isEditing, setIsEditing] = useState(false);
 
   const onTitleClick = () => {
@@ -565,6 +613,7 @@ export function ModalTitle({
       {shrinkOnOverflow ? (
         <AutoTextSize
           as={Text}
+          id={titleId}
           minFontSizePx={15}
           maxFontSizePx={25}
           onClick={onTitleClick}
@@ -580,6 +629,7 @@ export function ModalTitle({
         </AutoTextSize>
       ) : (
         <TextOneLine
+          id={titleId}
           onClick={onTitleClick}
           style={{
             fontSize: 25,

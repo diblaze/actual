@@ -30,8 +30,6 @@ type ExpenseCategoryListProps = {
   month: string;
   onEditCategory: (id: string) => void;
   onBudgetAction: (month: string, action: string, args: unknown) => void;
-  show3Columns: boolean;
-  showBudgetedColumn: boolean;
 };
 
 export function ExpenseCategoryList({
@@ -40,8 +38,6 @@ export function ExpenseCategoryList({
   month,
   onEditCategory,
   onBudgetAction,
-  show3Columns,
-  showBudgetedColumn,
   shouldHideCategory,
 }: ExpenseCategoryListProps) {
   const { t } = useTranslation();
@@ -104,14 +100,7 @@ export function ExpenseCategoryList({
       })}
       items={categories}
       dragAndDropHooks={dragAndDropHooks}
-      dependencies={[
-        month,
-        onEditCategory,
-        onBudgetAction,
-        shouldHideCategory,
-        show3Columns,
-        showBudgetedColumn,
-      ]}
+      dependencies={[month, onEditCategory, onBudgetAction, shouldHideCategory]}
     >
       {category => (
         <ExpenseCategoryListItem
@@ -121,8 +110,6 @@ export function ExpenseCategoryList({
           onEditCategory={onEditCategory}
           onBudgetAction={onBudgetAction}
           isHidden={shouldHideCategory(category)}
-          show3Columns={show3Columns}
-          showBudgetedColumn={showBudgetedColumn}
         />
       )}
     </GridList>

@@ -324,6 +324,7 @@ export type Modal =
       options: {
         onSelect: (payeeId: string | null) => void;
         showNoneOption?: boolean;
+        transferOnly?: boolean;
         onClose?: () => void;
       };
     }
@@ -499,9 +500,12 @@ export type Modal =
         categoryId: CategoryEntity['id'];
         month: string;
         onCarryover?: (carryover: boolean) => void;
-        onTransfer?: () => void;
-        onCover?: () => void;
+        onTransfer?: (balance: number) => void;
+        onCover?: (balance: number) => void;
         onFundGoal?: (amount: IntegerAmount) => void;
+        onShowActivity?: () => void;
+        onEditCategory?: () => void;
+        onBudgetAction?: (month: string, action: string, args: unknown) => void;
       };
     }
   | {
@@ -514,11 +518,25 @@ export type Modal =
       };
     }
   | {
+      name: 'envelope-summary-to-budget-menu';
+      options: {
+        month: string;
+        onTransfer: () => void;
+        onCover: () => void;
+        onHoldBuffer: () => void;
+        onResetHoldBuffer: () => void;
+        onBudgetAction: (month: string, action: string, arg?: unknown) => void;
+      };
+    }
+  | {
       name: 'tracking-balance-menu';
       options: {
         categoryId: CategoryEntity['id'];
         month: string;
         onCarryover: (carryover: boolean) => void;
+        onShowActivity?: () => void;
+        onEditCategory?: () => void;
+        onBudgetAction?: (month: string, action: string, args: unknown) => void;
       };
     }
   | {
@@ -676,6 +694,9 @@ export type Modal =
       name: 'keyboard-shortcuts';
     }
   | {
+      name: 'more';
+    }
+  | {
       name: 'goal-templates';
     }
   | {
@@ -790,9 +811,11 @@ const modalsSlice = createSlice({
       state.modalStack = [];
     },
     collapseModals(state, action: PayloadAction<CollapseModalPayload>) {
-      const idx = state.modalStack.findIndex(
-        m => m.name === action.payload.rootModalName,
-      );
+      // The topmost one: a picker can open the same picker (cover's "from"
+      // inside the overspent list), and closing it must keep the one below
+      const idx = state.modalStack
+        .map(m => m.name as string)
+        .lastIndexOf(action.payload.rootModalName);
       state.modalStack =
         idx < 0 ? state.modalStack : state.modalStack.slice(0, idx);
     },

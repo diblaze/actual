@@ -1,272 +1,231 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { ComponentProps, ComponentType, CSSProperties } from 'react';
-import { useTranslation } from 'react-i18next';
-import { NavLink, useLocation } from 'react-router';
-import { animated, config, useSpring } from 'react-spring';
+import React from 'react';
+import type { ComponentType, CSSProperties } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import { Link, matchPath, useLocation } from 'react-router';
 
+import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import {
   SvgAdd,
-  SvgCog,
+  SvgDotsHorizontalTriple,
+  SvgListBullet,
   SvgPiggyBank,
   SvgReports,
   SvgWallet,
 } from '@actual-app/components/icons/v1';
-import { SvgCalendar3 } from '@actual-app/components/icons/v2';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
-import { View } from '@actual-app/components/view';
-import { useDrag } from '@use-gesture/react';
+import { spacing } from '@actual-app/components/tokens';
+import { css } from '@emotion/css';
 
-import { useIsTestEnv } from '#hooks/useIsTestEnv';
-import { useScrollListener } from '#hooks/useScrollListener';
+import { MORE_PATHS } from '#components/modals/MoreModal';
+import { useAccount } from '#hooks/useAccount';
+import { useNavigate } from '#hooks/useNavigate';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
-const COLUMN_COUNT = 3;
-const ROW_COUNT = 2;
-const PILL_HEIGHT = 15;
-const ROW_HEIGHT = 70;
-const TOTAL_HEIGHT = ROW_HEIGHT * ROW_COUNT;
-const OPEN_FULL_Y = 1;
-const OPEN_DEFAULT_Y = TOTAL_HEIGHT - ROW_HEIGHT;
-const HIDDEN_Y = TOTAL_HEIGHT;
+import { primeIOSKeyboard } from './transactions/iosKeyboard';
 
-export const MOBILE_NAV_HEIGHT = ROW_HEIGHT + PILL_HEIGHT;
+// The bar floats BAR_BOTTOM above the home indicator; Add floats above it.
+const BAR_HEIGHT = 72;
+const BAR_BOTTOM = 24;
+const ADD_HEIGHT = 56;
+const ADD_BOTTOM = BAR_BOTTOM + BAR_HEIGHT + 16;
+
+// Bottom clearance for scrolling content: bar, Add and the safe area
+export const MOBILE_NAV_HEIGHT = `calc(${ADD_BOTTOM + ADD_HEIGHT + 8}px + env(safe-area-inset-bottom))`;
+
+const focusRing = css({
+  outline: 'none',
+  '&:focus-visible, &[data-focus-visible]': {
+    outline: `2px solid ${theme.pageText}`,
+    outlineOffset: 2,
+  },
+});
+
+type IconType = ComponentType<{ width: number; height: number }>;
+
+// The current destination and the Add action
+function useNavState() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isUnder = (path: string) =>
+    pathname === path || pathname.startsWith(`${path}/`);
+  const isTransactionsActive = pathname === '/accounts/all';
+
+  // Add presets the viewed account; virtual lists (all, onbudget…) have none
+  const accountMatch = matchPath('/accounts/:id', pathname);
+  const account = useAccount(accountMatch?.params.id ?? '');
+
+  return {
+    pathname,
+    isBudgetActive: isUnder('/budget'),
+    isTransactionsActive,
+    isAccountsActive: isUnder('/accounts') && !isTransactionsActive,
+    isReportsActive: isUnder('/reports'),
+    isMoreActive: MORE_PATHS.some(isUnder),
+    hasAccount: !!accountMatch,
+    onAdd: () => {
+      primeIOSKeyboard();
+      void navigate('/transactions/new', {
+        state: { accountId: account?.id },
+      });
+    },
+  };
+}
 
 export function MobileNavTabs() {
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
-  const isTestEnv = useIsTestEnv();
-  const [navbarState, setNavbarState] = useState<'default' | 'open' | 'hidden'>(
-    'default',
-  );
-
-  const navTabStyle = {
-    flex: `1 1 ${100 / COLUMN_COUNT}%`,
-    height: ROW_HEIGHT,
-    padding: 10,
-    maxWidth: `${100 / COLUMN_COUNT}%`,
-  };
-
-  const [{ y }, api] = useSpring(() => ({ from: { y: OPEN_DEFAULT_Y } }), []);
-
-  const openFull = useCallback(
-    ({ canceled }: { canceled?: boolean }) => {
-      // when cancel is true, it means that the user passed the upwards threshold
-      // so we change the spring config to create a nice wobbly effect
-      setNavbarState('open');
-      void api.start({
-        to: { y: OPEN_FULL_Y },
-        immediate: isTestEnv,
-        config: canceled ? config.wobbly : config.stiff,
-      });
-    },
-    [api, isTestEnv],
-  );
-
-  const openDefault = useCallback(
-    (velocity = 0) => {
-      setNavbarState('default');
-      void api.start({
-        to: { y: OPEN_DEFAULT_Y },
-        immediate: isTestEnv,
-        config: { ...config.stiff, velocity },
-      });
-    },
-    [api, isTestEnv],
-  );
-
-  const hide = useCallback(
-    (velocity = 0) => {
-      setNavbarState('hidden');
-      void api.start({
-        to: { y: HIDDEN_Y },
-        immediate: isTestEnv,
-        config: { ...config.stiff, velocity },
-      });
-    },
-    [api, isTestEnv],
-  );
-
-  // The same route element serves every settings page (/settings/*), so the
-  // navbar isn't remounted when navigating between them. Reset it on every
-  // route change so a navbar hidden by scrolling doesn't stay hidden.
-  const { pathname } = useLocation();
-  useEffect(() => {
-    openDefault();
-  }, [pathname, openDefault]);
-
-  const navTabs = [
-    {
-      name: t('Budget'),
-      path: '/budget',
-      style: navTabStyle,
-      Icon: SvgWallet,
-    },
-    {
-      name: t('Transaction'),
-      path: '/transactions/new',
-      style: navTabStyle,
-      Icon: SvgAdd,
-    },
-    {
-      name: t('Accounts'),
-      path: '/accounts',
-      style: navTabStyle,
-      Icon: SvgPiggyBank,
-    },
-    {
-      name: t('Reports'),
-      path: '/reports',
-      style: navTabStyle,
-      Icon: SvgReports,
-    },
-    {
-      name: t('Schedules'),
-      path: '/schedules',
-      style: navTabStyle,
-      Icon: SvgCalendar3,
-    },
-    {
-      name: t('Settings'),
-      path: '/settings',
-      style: navTabStyle,
-      Icon: SvgCog,
-    },
-  ].map(tab => (
-    <NavTab key={tab.path} onClick={() => openDefault()} {...tab} />
-  ));
-
-  useScrollListener(
-    useCallback(
-      ({ isScrolling, hasScrolledToEnd }) => {
-        if (isScrolling('down') && !hasScrolledToEnd('up')) {
-          hide();
-        } else if (isScrolling('up') && !hasScrolledToEnd('down')) {
-          openDefault();
-        }
-      },
-      [hide, openDefault],
-    ),
-  );
-
-  const bind = useDrag(
-    ({
-      last,
-      velocity: [, vy],
-      direction: [, dy],
-      offset: [, oy],
-      cancel,
-      canceled,
-    }) => {
-      // if the user drags up passed a threshold, then we cancel
-      // the drag so that the sheet resets to its open position
-      if (oy < 0) {
-        cancel();
-      }
-
-      // when the user releases the sheet, we check whether it passed
-      // the threshold for it to close, or if we reset it to its open position
-      if (last) {
-        if (oy > ROW_HEIGHT * 0.5 || (vy > 0.5 && dy > 0)) {
-          openDefault(vy);
-        } else {
-          openFull({ canceled });
-        }
-      } else {
-        // when the user keeps dragging, we just move the sheet according to
-        // the cursor position
-        void api.start({ to: { y: oy }, immediate: true });
-      }
-    },
-    {
-      from: () => [0, y.get()],
-      filterTaps: true,
-      bounds: { top: -TOTAL_HEIGHT, bottom: TOTAL_HEIGHT - ROW_HEIGHT },
-      axis: 'y',
-      rubberband: true,
-    },
-  );
+  const dispatch = useDispatch();
+  const nav = useNavState();
+  const showAdd =
+    isNarrowWidth && (nav.pathname === '/budget' || nav.hasAccount);
 
   return (
-    <animated.div
-      role="navigation"
-      {...bind()}
-      style={{
-        y,
-        touchAction: 'pan-x',
-        backgroundColor: theme.mobileNavBackground,
-        borderTop: `1px solid ${theme.menuBorder}`,
-        ...styles.shadow,
-        height: TOTAL_HEIGHT + PILL_HEIGHT,
-        width: '100%',
-        position: 'fixed',
-        zIndex: 100,
-        bottom: 0,
-        ...(!isNarrowWidth && { display: 'none' }),
-      }}
-      data-navbar-state={navbarState}
-    >
-      <View>
-        <div
+    <>
+      {showAdd && (
+        <Button
+          variant="bare"
+          aria-label={t('Add transaction')}
+          className={focusRing}
+          onPress={nav.onAdd}
           style={{
-            backgroundColor: theme.pillBorder,
-            borderRadius: 10,
-            width: 30,
-            marginTop: 5,
-            marginBottom: 5,
-            padding: 2,
-            alignSelf: 'center',
-          }}
-        />
-        <View
-          style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            height: TOTAL_HEIGHT,
-            width: '100%',
+            ...styles.noTapHighlight,
+            position: 'fixed',
+            right: 16,
+            bottom: `calc(${ADD_BOTTOM}px + env(safe-area-inset-bottom))`,
+            zIndex: 100,
+            height: ADD_HEIGHT,
+            padding: `0 ${spacing.xl}px`,
+            gap: 10,
+            borderRadius: ADD_HEIGHT / 2,
+            fontSize: 18,
+            fontWeight: 600,
+            color: theme.buttonPrimaryText,
+            backgroundColor: theme.buttonPrimaryBackground,
+            boxShadow: theme.floatingElevation,
           }}
         >
-          {navTabs}
-        </View>
-      </View>
-    </animated.div>
+          <SvgAdd width={18} height={18} />
+          <Trans>Add</Trans>
+        </Button>
+      )}
+      <nav
+        aria-label={t('Main')}
+        style={{
+          display: isNarrowWidth ? 'block' : 'none',
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 100,
+          paddingLeft: 12,
+          paddingRight: 12,
+          // calc() keeps env() in jsdom; a bare env() is dropped there.
+          paddingBottom: `calc(${BAR_BOTTOM}px + env(safe-area-inset-bottom))`,
+          // Only the bar takes taps; the inset around it is see-through
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          style={{
+            pointerEvents: 'auto',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            alignItems: 'center',
+            boxSizing: 'border-box',
+            height: BAR_HEIGHT,
+            padding: '0 5px', // ds-allow-hardcode: 901d6cb bar inset
+            borderRadius: BAR_HEIGHT / 2,
+            backgroundColor: theme.glassBackground,
+            border: `1px solid ${theme.glassBorder}`,
+            boxShadow: theme.floatingElevation,
+            backdropFilter: 'blur(24px)', // ds-allow-hardcode: glass blur
+            WebkitBackdropFilter: 'blur(24px)', // ds-allow-hardcode: glass blur
+          }}
+        >
+          <NavTab
+            name={t('Budget')}
+            path="/budget"
+            Icon={SvgWallet}
+            isActive={nav.isBudgetActive}
+          />
+          <NavTab
+            name={t('Transactions')}
+            path="/accounts/all"
+            Icon={SvgListBullet}
+            isActive={nav.isTransactionsActive}
+          />
+          <NavTab
+            name={t('Accounts')}
+            path="/accounts"
+            Icon={SvgPiggyBank}
+            isActive={nav.isAccountsActive}
+          />
+          <NavTab
+            name={t('Reports')}
+            path="/reports"
+            Icon={SvgReports}
+            isActive={nav.isReportsActive}
+          />
+          <Button
+            variant="bare"
+            aria-current={nav.isMoreActive ? 'page' : undefined}
+            className={focusRing}
+            onPress={() => dispatch(pushModal({ modal: { name: 'more' } }))}
+            style={{ ...tabStyle(nav.isMoreActive), padding: 0 }}
+          >
+            <SvgDotsHorizontalTriple width={22} height={22} />
+            <Trans>More</Trans>
+          </Button>
+        </div>
+      </nav>
+    </>
   );
 }
 
-type NavTabIconProps = {
-  width: number;
-  height: number;
-  style?: CSSProperties;
-};
+function tabStyle(isActive: boolean): CSSProperties {
+  return {
+    ...styles.noTapHighlight,
+    height: 60,
+    minWidth: 0,
+    borderRadius: 30,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    fontSize: 11,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
+    userSelect: 'none',
+    color: isActive ? theme.accentSubtleText : theme.pageText,
+    backgroundColor: isActive ? theme.accentSubtleBackground : undefined,
+  };
+}
 
-type NavTabProps = {
+function NavTab({
+  name,
+  path,
+  Icon,
+  isActive,
+}: {
   name: string;
   path: string;
-  Icon: ComponentType<NavTabIconProps>;
-  style?: CSSProperties;
-  onClick: ComponentProps<typeof NavLink>['onClick'];
-};
-
-function NavTab({ Icon: TabIcon, name, path, style, onClick }: NavTabProps) {
+  Icon: IconType;
+  isActive: boolean;
+}) {
   return (
-    <NavLink
+    <Link
       to={path}
-      style={({ isActive }) => ({
-        ...styles.noTapHighlight,
-        alignItems: 'center',
-        color: isActive ? theme.mobileNavItemSelected : theme.mobileNavItem,
-        display: 'flex',
-        flexDirection: 'column',
-        textDecoration: 'none',
-        textAlign: 'center',
-        textWrap: 'balance',
-        userSelect: 'none',
-        ...style,
-      })}
-      onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
+      className={focusRing}
+      style={tabStyle(isActive)}
     >
-      <TabIcon width={22} height={22} style={{ minHeight: '22px' }} />
+      <Icon width={22} height={22} />
       {name}
-    </NavLink>
+    </Link>
   );
 }

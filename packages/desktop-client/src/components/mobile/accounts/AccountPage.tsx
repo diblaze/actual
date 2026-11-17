@@ -1,20 +1,22 @@
 import React, { Fragment, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
+import { SvgCheveronDown } from '@actual-app/components/icons/v1';
 import { styles } from '@actual-app/components/styles';
 import type { CSSProperties } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import type { AccountEntity } from '@actual-app/core/types/models';
 
 import { useReopenAccountMutation, useUpdateAccountMutation } from '#accounts';
 import { isAccountFailedSync } from '#accounts/syncStatus';
+import { UncategorizedBanner } from '#components/mobile/ActionBanner';
 import { MobileBackButton } from '#components/mobile/MobileBackButton';
-import { AddTransactionButton } from '#components/mobile/transactions/AddTransactionButton';
 import { MobilePageHeader, Page } from '#components/Page';
 import { useAccount } from '#hooks/useAccount';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -25,6 +27,7 @@ import {
 } from '#modals/modalsSlice';
 import { useDispatch, useSelector } from '#redux';
 
+import { ALL_ACCOUNTS_ID } from './AccountsPage';
 import { AccountTransactions } from './AccountTransactions';
 import { AllAccountTransactions } from './AllAccountTransactions';
 import { OffBudgetAccountTransactions } from './OffBudgetAccountTransactions';
@@ -65,18 +68,25 @@ export function AccountPage() {
           title={
             account ? (
               <AccountHeader account={account} />
-            ) : accountIdParam === 'all' ? (
+            ) : accountIdParam === ALL_ACCOUNTS_ID ? (
               <AllAccountsHeader />
             ) : (
               <NameOnlyHeader name={nameFromId(accountIdParam)} />
             )
           }
-          leftContent={<MobileBackButton />}
-          rightContent={<AddTransactionButton accountId={account?.id} />}
+          // The Transactions tab is a top-level destination: no way back
+          leftContent={
+            accountIdParam !== ALL_ACCOUNTS_ID && <MobileBackButton />
+          }
         />
       }
       padding={0}
     >
+      {accountIdParam === ALL_ACCOUNTS_ID && (
+        <UncategorizedBanner
+          style={{ margin: `0 ${spacing.lg}px ${spacing.md}px` }}
+        />
+      )}
       {/* This key forces the whole table rerender when the number format changes */}
       <Fragment key={numberFormat + hideFraction}>
         {account ? (
@@ -239,7 +249,6 @@ function AccountHeader({ account }: { readonly account: AccountEntity }) {
 }
 
 function AllAccountsHeader() {
-  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const onClick = useCallback(() => {
@@ -253,21 +262,22 @@ function AllAccountsHeader() {
     );
   }, [dispatch]);
 
+  // A top-level large title, like the budget month; it opens the menu
   return (
-    <View style={{ flexDirection: 'row' }}>
-      <Button variant="bare" onPress={onClick}>
-        <Text
-          size="extra-large"
-          style={{
-            fontWeight: 500,
-            ...styles.underlinedText,
-            ...(styles.lineClamp(2) as CSSProperties),
-          }}
-        >
-          {t('All Accounts')}
-        </Text>
-      </Button>
-    </View>
+    <Button
+      variant="bare"
+      style={{
+        padding: 0,
+        gap: 6,
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        color: 'inherit',
+      }}
+      onPress={onClick}
+    >
+      <Trans>Transactions</Trans>
+      <SvgCheveronDown width={18} height={18} style={{ flexShrink: 0 }} />
+    </Button>
   );
 }
 

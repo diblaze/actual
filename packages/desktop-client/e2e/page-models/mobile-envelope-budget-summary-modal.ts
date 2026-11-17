@@ -13,6 +13,6 @@ export class EnvelopeBudgetSummaryModal {
   }
 
   async close() {
-    await this.page.keyboard.press('Escape');
+    await this.heading.getByRole('button', { name: 'Close' }).click();
   }
 }

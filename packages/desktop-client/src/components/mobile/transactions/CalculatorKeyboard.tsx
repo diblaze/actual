@@ -10,7 +10,7 @@ import { View } from '@actual-app/components/view';
 import { CalculatorButtons } from '#components/common/CalculatorButtons';
 import { hapticKeyPress } from '#util/haptics';
 
-export const CALCULATOR_KEYBOARD_HEIGHT = 'min(400px, max(320px, 50dvh))';
+const CALCULATOR_KEYBOARD_HEIGHT = 'min(400px, max(320px, 50dvh))';
 
 export const CalculatorKeyboard = memo(function CalculatorAmountInput({
   inputRef,
@@ -54,6 +54,19 @@ export const CalculatorKeyboard = memo(function CalculatorAmountInput({
     setIsOpenDebounced(isOpen);
   }, [isOpen, isOpenDebounced, initialTransitionDelay]);
 
+  // Bottom sheets read this to sit above the keypad instead of under it
+  useEffect(() => {
+    if (!isOpenDebounced) return;
+    const root = document.documentElement;
+    root.style.setProperty(
+      '--calculator-keyboard-height',
+      CALCULATOR_KEYBOARD_HEIGHT,
+    );
+    return () => {
+      root.style.removeProperty('--calculator-keyboard-height');
+    };
+  }, [isOpenDebounced]);
+
   return (
     <View
       style={{
@@ -63,9 +76,7 @@ export const CalculatorKeyboard = memo(function CalculatorAmountInput({
         bottom: 0,
         display: 'flex',
         gap: 6,
-        height: '50dvh',
-        maxHeight: 400,
-        minHeight: 320,
+        height: CALCULATOR_KEYBOARD_HEIGHT,
         left: 0,
         overflow: 'visible',
         position: 'fixed',
