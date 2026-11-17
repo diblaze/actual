@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 
+import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
-import { spacing } from '@actual-app/components/tokens';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 
 type SettingsGroupProps = {
@@ -17,6 +18,7 @@ export function SettingsGroup({
   description,
   children,
 }: SettingsGroupProps) {
+  const { isNarrowWidth } = useResponsive();
   return (
     <View style={{ flexShrink: 0, gap: spacing.sm }}>
       <View style={{ gap: spacing.xxs }}>
@@ -44,6 +46,13 @@ export function SettingsGroup({
           '&& > * + *': {
             borderTop: `1px solid ${theme.settingsCardBorder}`,
           },
+          // Phone settings sit in the same cards as the other phone lists
+          ...(isNarrowWidth && {
+            backgroundColor: theme.cardBackground,
+            borderRadius: radius.card,
+            border: 'none',
+            boxShadow: theme.cardElevation,
+          }),
         }}
       >
         {children}

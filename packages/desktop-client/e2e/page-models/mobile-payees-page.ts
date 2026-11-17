@@ -47,7 +47,10 @@ export class MobilePayeesPage {
    * Get all visible payee items
    */
   getAllPayees() {
-    return this.payeesList.getByRole('gridcell');
+    // Letter headers are disabled rows; only payee rows count
+    return this.payeesList.locator(
+      '[role="row"]:not([aria-disabled="true"]) [role="gridcell"]',
+    );
   }
 
   /**

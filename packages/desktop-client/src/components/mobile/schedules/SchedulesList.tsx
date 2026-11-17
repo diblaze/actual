@@ -1,15 +1,20 @@
 import { GridList, ListLayout, Virtualizer } from 'react-aria-components';
 import { Trans, useTranslation } from 'react-i18next';
 
+import { Button } from '@actual-app/components/button';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { tapTarget } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
+import { format as monthUtilFormat } from '@actual-app/core/shared/months';
 import type { ScheduleStatusType } from '@actual-app/core/shared/schedules';
 import type { ScheduleEntity } from '@actual-app/core/types/models';
 
 import { ActionableGridListItem } from '#components/mobile/ActionableGridListItem';
+import { GROUP_CARD_STYLE } from '#components/mobile/budget/BudgetTable';
 import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
+import { useDateFormat } from '#hooks/useDateFormat';
 
 import { SchedulesListItem } from './SchedulesListItem';
 
@@ -22,6 +27,10 @@ type SchedulesListProps = {
   statuses: Map<ScheduleEntity['id'], ScheduleStatusType>;
   onSchedulePress: (schedule: ScheduleEntity) => void;
   onScheduleDelete: (schedule: ScheduleEntity) => void;
+  onScheduleMarkPaid: (schedule: ScheduleEntity) => void;
+  onScheduleSkip: (schedule: ScheduleEntity) => void;
+  // Overdue rows whose mark-paid or skip is still being sent
+  pendingScheduleIds?: ReadonlySet<ScheduleEntity['id']>;
   hasCompletedSchedules?: boolean;
   showCompleted?: boolean;
   onShowCompleted?: () => void;
@@ -33,16 +42,22 @@ export function SchedulesList({
   statuses,
   onSchedulePress,
   onScheduleDelete,
+  onScheduleMarkPaid,
+  onScheduleSkip,
+  pendingScheduleIds,
   hasCompletedSchedules = false,
   showCompleted = false,
   onShowCompleted,
 }: SchedulesListProps) {
   const { t } = useTranslation();
+  const dateFormat = useDateFormat() || 'MM/dd/yyyy';
+  const overdue = schedules.filter(s => statuses.get(s.id) === 'missed');
+  const rest = schedules.filter(s => statuses.get(s.id) !== 'missed');
   const shouldShowCompletedItem =
     hasCompletedSchedules && !showCompleted && onShowCompleted;
   const listItems: readonly SchedulesListEntry[] = shouldShowCompletedItem
-    ? [...schedules, { id: 'show-completed' }]
-    : schedules;
+    ? [...rest, { id: 'show-completed' }]
+    : rest;
   const showCompletedLabel = t('Show completed schedules');
 
   if (isLoading && listItems.length === 0) {
@@ -60,7 +75,7 @@ export function SchedulesList({
     );
   }
 
-  if (listItems.length === 0) {
+  if (listItems.length === 0 && overdue.length === 0) {
     return (
       <View
         style={{
@@ -87,6 +102,64 @@ export function SchedulesList({
 
   return (
     <View style={{ flex: 1, overflow: 'auto' }}>
+      {overdue.length > 0 && (
+        <View
+          role="region"
+          aria-label={t('Overdue')}
+          style={{
+            ...GROUP_CARD_STYLE,
+            marginTop: 12,
+            padding: 12,
+            gap: 12,
+            backgroundColor: theme.errorBackground,
+            color: theme.errorText,
+          }}
+        >
+          <Text style={{ fontWeight: 600, color: theme.errorText }}>
+            <Trans>Overdue</Trans>
+          </Text>
+          {overdue.map(schedule => (
+            <View
+              key={schedule.id}
+              role="group"
+              aria-label={schedule.name || t('Unnamed schedule')}
+              style={{ gap: 8 }}
+            >
+              <Button
+                variant="bare"
+                style={{
+                  justifyContent: 'flex-start',
+                  minHeight: tapTarget,
+                  fontWeight: 600,
+                  color: theme.pageText,
+                }}
+                onPress={() => onSchedulePress(schedule)}
+              >
+                {schedule.name || t('Unnamed schedule')}
+                {schedule.next_date &&
+                  ` · ${monthUtilFormat(schedule.next_date, dateFormat)}`}
+              </Button>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Button
+                  variant="primary"
+                  isDisabled={pendingScheduleIds?.has(schedule.id)}
+                  style={{ flex: 1, minHeight: tapTarget }}
+                  onPress={() => onScheduleMarkPaid(schedule)}
+                >
+                  <Trans>Mark as paid</Trans>
+                </Button>
+                <Button
+                  isDisabled={pendingScheduleIds?.has(schedule.id)}
+                  style={{ flex: 1, minHeight: tapTarget }}
+                  onPress={() => onScheduleSkip(schedule)}
+                >
+                  <Trans>Skip</Trans>
+                </Button>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
       <Virtualizer
         layout={ListLayout}
         layoutOptions={{
@@ -98,9 +171,17 @@ export function SchedulesList({
           aria-label={t('Schedules')}
           aria-busy={isLoading || undefined}
           items={listItems}
-          style={{
-            paddingBottom: MOBILE_NAV_HEIGHT,
-          }}
+          // With only overdue schedules the list is empty: no card, but it
+          // keeps its height so it stays visible
+          style={
+            listItems.length > 0
+              ? {
+                  ...GROUP_CARD_STYLE,
+                  marginTop: 12,
+                  marginBottom: MOBILE_NAV_HEIGHT,
+                }
+              : { paddingBottom: MOBILE_NAV_HEIGHT }
+          }
         >
           {item =>
             !('completed' in item) ? (

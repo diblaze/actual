@@ -9,7 +9,7 @@ import { Input } from '@actual-app/components/input';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
-import { spacing } from '@actual-app/components/tokens';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import { listen } from '@actual-app/core/platform/client/connection';
 import { isElectron } from '@actual-app/core/shared/environment';
@@ -240,7 +240,8 @@ export function SettingsIndex() {
         style={{
           marginTop: 10,
           flexShrink: 0,
-          gap: 30,
+          // Cards sit close together as one grouped list
+          gap: 12,
           paddingBottom: MOBILE_NAV_HEIGHT,
         }}
       >
@@ -250,6 +251,10 @@ export function SettingsIndex() {
             flexDirection: 'row',
             alignItems: 'flex-end',
             width: '100%',
+            padding: 15,
+            borderRadius: radius.card,
+            backgroundColor: theme.cardBackground,
+            boxShadow: theme.cardElevation,
           }}
         >
           {/* The only spot to close a budget on mobile */}

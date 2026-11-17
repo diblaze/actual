@@ -4,7 +4,7 @@ import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { SvgCog, SvgPylon } from '@actual-app/components/icons/v1';
 import { SvgSettingsSliderAlternate } from '@actual-app/components/icons/v2';
 import { theme } from '@actual-app/components/theme';
-import { spacing } from '@actual-app/components/tokens';
+import { radius, spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 
 import {
@@ -41,9 +41,10 @@ export function SettingsNav() {
         isNarrowWidth
           ? {
               flexShrink: 0,
-              backgroundColor: theme.settingsCardBackground,
-              border: `1px solid ${theme.settingsCardBorder}`,
-              borderRadius: 6,
+              backgroundColor: theme.cardBackground,
+              borderRadius: radius.card,
+              border: 'none',
+              boxShadow: theme.cardElevation,
             }
           : { width: 180, flexShrink: 0, gap: spacing.xxs }
       }

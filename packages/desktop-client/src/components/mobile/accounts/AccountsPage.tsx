@@ -15,12 +15,18 @@ import {
   SvgAdd,
   SvgCheveronDown,
   SvgCheveronRight,
+  SvgCreditCard,
+  SvgEditPencil,
+  SvgExclamationSolid,
   SvgPiggyBank,
+  SvgRefresh,
+  SvgWallet,
 } from '@actual-app/components/icons/v1';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
+import { spacing } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import type { AccountEntity } from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
@@ -28,11 +34,14 @@ import { css } from '@emotion/css';
 import { useMoveAccountMutation, useSyncAndDownloadMutation } from '#accounts';
 import { isAccountFailedSync } from '#accounts/syncStatus';
 import { makeAmountFullStyle } from '#components/budget/util';
+import { GROUP_CARD_STYLE } from '#components/mobile/budget/BudgetTable';
 import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
 import { PullToRefresh } from '#components/mobile/PullToRefresh';
 import { MobilePageHeader, Page } from '#components/Page';
 import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
 import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useNavigate } from '#hooks/useNavigate';
 import { useSyncedPref } from '#hooks/useSyncedPref';
@@ -74,10 +83,10 @@ function AccountHeader<SheetFieldName extends SheetFields<'account'>>({
       aria-label={t('View {{name}} transactions', { name })}
       onPress={onPress ? onPress : () => navigate(`/accounts/${id}`)}
       style={{
-        height: ROW_HEIGHT,
+        height: 44,
         width: '100%',
-        padding: '0 18px',
-        color: theme.pageTextLight,
+        padding: '0 20px 0 18px',
+        color: theme.pageText,
         ...style,
       }}
       // to match the feel of the other account buttons
@@ -91,13 +100,13 @@ function AccountHeader<SheetFieldName extends SheetFields<'account'>>({
       ])}
     >
       <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row' }}>
-        <Text size="extra-large" data-testid="name">
+        <Text style={{ fontSize: 18, fontWeight: 700 }} data-testid="name">
           {name}
         </Text>
         <Cheveron
           style={{
             flexShrink: 0,
-            color: theme.mobileHeaderTextSubdued,
+            color: theme.pageTextLight,
             marginLeft: 5,
           }}
           width={styles.text.fontSize}
@@ -108,7 +117,11 @@ function AccountHeader<SheetFieldName extends SheetFields<'account'>>({
         {props => (
           <CellValueText<'account', SheetFieldName>
             {...props}
-            style={{ ...styles.text }}
+            style={{
+              fontSize: 16,
+              fontWeight: 500,
+              color: theme.pageTextLight,
+            }}
           />
         )}
       </CellValue>
@@ -120,24 +133,58 @@ type AccountListItemProps = ComponentPropsWithoutRef<
   typeof ListBoxItem<AccountEntity>
 > & {
   isUpdated: boolean;
-  isConnected: boolean;
-  isPending: boolean;
-  isFailed: boolean;
+  isSyncing: boolean;
+  isCard: boolean;
   getBalanceQuery: (
     accountId: AccountEntity['id'],
   ) => Binding<'account', 'balance'>;
   onSelect: (account: AccountEntity) => void;
 };
 
+function SyncBadge({
+  isSynced,
+  isSyncing,
+}: {
+  isSynced: boolean;
+  isSyncing: boolean;
+}) {
+  const Icon = isSynced || isSyncing ? SvgRefresh : SvgEditPencil;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        alignSelf: 'flex-start',
+        padding: '1px 8px',
+        borderRadius: 10,
+        backgroundColor: theme.pillBackground,
+        color: theme.pillText,
+      }}
+    >
+      <Icon aria-hidden width={11} height={11} />
+      <Text style={{ fontSize: 12 }}>
+        {isSyncing ? (
+          <Trans>Syncing</Trans>
+        ) : isSynced ? (
+          <Trans>Synced</Trans>
+        ) : (
+          <Trans>Manual</Trans>
+        )}
+      </Text>
+    </View>
+  );
+}
+
 function AccountListItem({
   isUpdated,
-  isConnected,
-  isPending,
-  isFailed,
+  isSyncing,
+  isCard,
   getBalanceQuery,
   onSelect,
   ...props
 }: AccountListItemProps) {
+  const { t } = useTranslation();
   const { value: account } = props;
 
   if (!account) {
@@ -161,54 +208,93 @@ function AccountListItem({
           style={{
             height: ROW_HEIGHT,
             width: '100%',
-            backgroundColor: theme.tableBackground,
+            backgroundColor: theme.cardBackground,
             border: 'none',
             borderRadius: 0,
-            paddingLeft: 8,
+            padding: '0 12px 0 10px',
+            gap: 12,
           }}
           data-testid="account-list-item"
           onPress={() => onSelect(account)}
         >
           <View
             style={{
-              flex: 1,
+              width: 10,
               alignItems: 'center',
-              flexDirection: 'row',
+              flexShrink: 0,
+              gap: spacing.xs,
             }}
           >
-            <View
-              style={{
-                backgroundColor: isPending
-                  ? theme.sidebarItemBackgroundPending
-                  : isFailed
-                    ? theme.sidebarItemBackgroundFailed
-                    : theme.sidebarItemBackgroundPositive,
-                marginRight: '6px',
-                width: 8,
-                flexShrink: 0,
-                height: 8,
-                borderRadius: 8,
-                opacity: isConnected ? 1 : 0,
-              }}
-            />
+            {isAccountFailedSync(account) && (
+              <SvgExclamationSolid
+                role="img"
+                aria-label={t('Sync failed')}
+                width={10}
+                height={10}
+                style={{ color: theme.errorText }}
+              />
+            )}
+            {isUpdated && (
+              <View
+                role="img"
+                aria-label={t('New transactions')}
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 5,
+                  backgroundColor: theme.accentSubtleText,
+                }}
+              />
+            )}
+          </View>
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              flexShrink: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: isCard
+                ? theme.accentSubtleBackground
+                : theme.balancePositiveBackground,
+              color: isCard
+                ? theme.accentSubtleText
+                : theme.balancePositiveText,
+            }}
+          >
+            {isCard ? (
+              <SvgCreditCard aria-hidden width={20} height={20} />
+            ) : (
+              <SvgWallet aria-hidden width={20} height={20} />
+            )}
+          </View>
+          <View style={{ flex: 1, alignItems: 'flex-start', minWidth: 0 }}>
             <TextOneLine
               style={{
                 ...styles.text,
                 fontSize: 17,
-                fontWeight: 600,
-                color: isUpdated ? theme.mobileAccountText : theme.pillText,
+                fontWeight: isUpdated ? 700 : 500,
+                color: theme.pageText,
+                // Long names end in an ellipsis instead of running under the balance
+                maxWidth: '100%',
               }}
               data-testid="account-name"
             >
               {account.name}
             </TextOneLine>
+            <SyncBadge
+              isSynced={!!account.account_sync_source}
+              isSyncing={isSyncing}
+            />
           </View>
           <CellValue binding={getBalanceQuery(account.id)} type="financial">
             {props => (
               <CellValueText<'account', 'balance'>
                 {...props}
                 style={{
-                  fontSize: 16,
+                  fontSize: 17,
+                  fontWeight: 700,
                   ...makeAmountFullStyle(props.value, {
                     positiveColor: theme.numberPositive,
                     negativeColor: theme.numberNegative,
@@ -219,6 +305,12 @@ function AccountListItem({
               />
             )}
           </CellValue>
+          <SvgCheveronRight
+            aria-hidden
+            width={16}
+            height={16}
+            style={{ flexShrink: 0, color: theme.pageTextLight }}
+          />
         </Button>
       )}
     </ListBoxItem>
@@ -229,7 +321,7 @@ function EmptyMessage({ onAddAccount }: { onAddAccount: () => void }) {
   return (
     <View
       style={{
-        minHeight: `calc(100vh - ${MOBILE_NAV_HEIGHT}px - 140px)`,
+        minHeight: `calc(100vh - ${MOBILE_NAV_HEIGHT} - 140px)`,
         alignItems: 'center',
         justifyContent: 'center',
         padding: 30,
@@ -285,7 +377,6 @@ type AllAccountListProps = {
   getAccountBalance: (
     accountId: AccountEntity['id'],
   ) => Binding<'account', 'balance'>;
-  getAllAccountsBalance: () => Binding<'account', 'accounts-balance'>;
   getOnBudgetBalance: () => Binding<'account', 'onbudget-accounts-balance'>;
   getOffBudgetBalance: () => Binding<'account', 'offbudget-accounts-balance'>;
   getClosedAccountsBalance: () => Binding<'account', 'closed-accounts-balance'>;
@@ -297,7 +388,6 @@ type AllAccountListProps = {
 function AllAccountList({
   accounts,
   getAccountBalance,
-  getAllAccountsBalance,
   getOnBudgetBalance,
   getOffBudgetBalance,
   getClosedAccountsBalance,
@@ -360,11 +450,6 @@ function AllAccountList({
             aria-label={t('Account list')}
             style={{ paddingBottom: MOBILE_NAV_HEIGHT }}
           >
-            <AccountHeader
-              id={ALL_ACCOUNTS_ID}
-              name={t('All accounts')}
-              amount={getAllAccountsBalance()}
-            />
             {onBudgetAccounts.length > 0 && (
               <AccountHeader
                 id="onbudget"
@@ -372,32 +457,37 @@ function AllAccountList({
                 amount={getOnBudgetBalance()}
               />
             )}
-            <AccountList
-              aria-label={t('On budget accounts')}
-              accounts={onBudgetAccounts}
-              getAccountBalance={getAccountBalance}
-              onOpenAccount={onOpenAccount}
-            />
+            {onBudgetAccounts.length > 0 && (
+              <AccountList
+                aria-label={t('On budget accounts')}
+                accounts={onBudgetAccounts}
+                getAccountBalance={getAccountBalance}
+                onOpenAccount={onOpenAccount}
+              />
+            )}
             {offBudgetAccounts.length > 0 && (
               <AccountHeader
                 id="offbudget"
                 name={t('Off budget')}
                 amount={getOffBudgetBalance()}
+                style={{ marginTop: 18 }}
               />
             )}
-            <AccountList
-              aria-label={t('Off budget accounts')}
-              accounts={offBudgetAccounts}
-              getAccountBalance={getAccountBalance}
-              onOpenAccount={onOpenAccount}
-            />
+            {offBudgetAccounts.length > 0 && (
+              <AccountList
+                aria-label={t('Off budget accounts')}
+                accounts={offBudgetAccounts}
+                getAccountBalance={getAccountBalance}
+                onOpenAccount={onOpenAccount}
+              />
+            )}
             {closedAccounts.length > 0 && (
               <AccountHeader
                 id="closed"
                 name={t('Closed')}
                 onPress={onToggleClosedAccounts}
                 amount={getClosedAccountsBalance()}
-                style={{ marginTop: 30 }}
+                style={{ marginTop: 18 }}
                 showCheveronDown={showClosedAccounts}
               />
             )}
@@ -442,6 +532,15 @@ const AccountList = forwardRef<HTMLDivElement, AccountListProps>(
       state => state.account.accountsSyncing,
     );
     const updatedAccounts = useSelector(state => state.account.updatedAccounts);
+
+    // A card account is one a payment category points at
+    const { data: categories } = useCategories();
+    const isPaymentCategory = useIsPaymentCategory();
+    const cardAccountIds = new Set(
+      (categories?.list ?? [])
+        .filter(isPaymentCategory)
+        .map(category => category.payment_account),
+    );
 
     const moveAccount = useMoveAccountMutation();
 
@@ -506,16 +605,13 @@ const AccountList = forwardRef<HTMLDivElement, AccountListProps>(
       <ListBox
         aria-label={ariaLabel}
         items={accounts}
-        dependencies={[syncingAccountIds, updatedAccounts]}
+        dependencies={[cardAccountIds, updatedAccounts, syncingAccountIds]}
         dragAndDropHooks={dragAndDropHooks}
         ref={ref}
         style={{
           display: 'flex',
           flexDirection: 'column',
-          margin: '0 8px',
-          border: `1px solid ${theme.tableBorder}`,
-          borderRadius: 8,
-          overflow: 'hidden',
+          ...GROUP_CARD_STYLE,
         }}
       >
         {account => (
@@ -524,9 +620,8 @@ const AccountList = forwardRef<HTMLDivElement, AccountListProps>(
             id={account.id}
             value={account}
             isUpdated={updatedAccounts && updatedAccounts.includes(account.id)}
-            isConnected={!!account.bank}
-            isPending={syncingAccountIds.includes(account.id)}
-            isFailed={isAccountFailedSync(account)}
+            isSyncing={syncingAccountIds.includes(account.id)}
+            isCard={cardAccountIds.has(account.id)}
             getBalanceQuery={getBalanceBinding}
             onSelect={onOpenAccount}
           />
@@ -585,7 +680,6 @@ export function AccountsPage() {
         key={numberFormat + hideFraction}
         accounts={accounts}
         getAccountBalance={bindings.accountBalance}
-        getAllAccountsBalance={bindings.allAccountBalance}
         getOnBudgetBalance={bindings.onBudgetAccountBalance}
         getOffBudgetBalance={bindings.offBudgetAccountBalance}
         getClosedAccountsBalance={bindings.closedAccountBalance}

@@ -192,6 +192,50 @@ describe('MobilePayeesPage', () => {
     expect(screen.queryByText('Restaurant')).not.toBeInTheDocument();
   });
 
+  it('duplicate suggestion', () => {
+    queryClient.setQueryData(payeeQueries.list().queryKey, [
+      { id: 'p1', name: 'ICA Maxi', favorite: false },
+      { id: 'p2', name: 'ica maxi ', favorite: false },
+    ]);
+
+    renderPayeesPage();
+
+    expect(
+      screen.getByRole('button', { name: /merge ica maxi/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('no suggestion for distinct names', () => {
+    queryClient.setQueryData(payeeQueries.list().queryKey, [
+      { id: 'p1', name: 'ICA Maxi', favorite: false },
+      { id: 'p2', name: 'ICA Nära', favorite: false },
+    ]);
+
+    renderPayeesPage();
+
+    expect(
+      screen.queryByRole('button', { name: /merge/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('letter sections follow the normalised first letter', () => {
+    // The server's order: ASCII case-insensitive, transfer payees last
+    queryClient.setQueryData(payeeQueries.list().queryKey, [
+      { id: 'p1', name: 'Bauhaus', favorite: false },
+      { id: 'p2', name: 'Zara', favorite: false },
+      { id: 'p3', name: 'Åhléns', favorite: false },
+      { id: 'p4', name: 'Öresund', favorite: false },
+      { id: 't1', name: 'Checking', favorite: false, transfer_acct: 'a1' },
+    ]);
+
+    renderPayeesPage();
+
+    const index = screen.getByRole('navigation', { name: 'Letter index' });
+    expect(
+      [...index.querySelectorAll('button')].map(b => b.textContent),
+    ).toEqual(['A', 'B', 'C', 'O', 'Z']);
+  });
+
   it('handles empty payee list', () => {
     // Set empty payee list in the cache
     queryClient.setQueryData(payeeQueries.list().queryKey, []);

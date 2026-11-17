@@ -18,6 +18,7 @@ import { usePayeeRuleCounts } from '#hooks/usePayeeRuleCounts';
 import { usePayees } from '#hooks/usePayees';
 import { useUndo } from '#hooks/useUndo';
 import { useUrlParam } from '#hooks/useUrlParam';
+import { pushModal } from '#modals/modalsSlice';
 import { addNotification } from '#notifications/notificationsSlice';
 import { useDispatch } from '#redux';
 
@@ -42,8 +43,11 @@ export function MobilePayeesPage() {
     setFilter(filterParam ?? '');
   }, [filterParam]);
 
-  const { data: ruleCounts = new Map(), isPending: isRuleCountsLoading } =
-    usePayeeRuleCounts();
+  const {
+    data: ruleCounts = new Map(),
+    isPending: isRuleCountsLoading,
+    refetch: refetchRuleCounts,
+  } = usePayeeRuleCounts();
 
   const filteredPayees: PayeeEntity[] = useMemo(() => {
     if (!filter) return payees;
@@ -105,6 +109,41 @@ export function MobilePayeesPage() {
     },
     [navigate, ruleCounts],
   );
+
+  const handleMergePayees = (toMerge: PayeeEntity[]) => {
+    const [target, ...rest] = toMerge;
+    dispatch(
+      pushModal({
+        modal: {
+          name: 'confirm-payees-merge',
+          options: {
+            payeeIds: rest.map(p => p.id),
+            targetPayeeId: target.id,
+            onConfirm: async () => {
+              try {
+                await send('payees-merge', {
+                  targetId: target.id,
+                  mergeIds: rest.map(p => p.id),
+                });
+                // Merged payees' rules now point at the target
+                await refetchRuleCounts();
+              } catch (error) {
+                console.error('Failed to merge payees:', error);
+                dispatch(
+                  addNotification({
+                    notification: {
+                      type: 'error',
+                      message: t('Failed to merge payees. Please try again.'),
+                    },
+                  }),
+                );
+              }
+            },
+          },
+        },
+      }),
+    );
+  };
 
   const handlePayeeDelete = useCallback(
     async (payee: PayeeEntity) => {
@@ -172,6 +211,7 @@ export function MobilePayeesPage() {
         onPayeePress={handlePayeePress}
         onPayeeDelete={handlePayeeDelete}
         onPayeeRuleAction={handlePayeeRuleAction}
+        onMergePayees={handleMergePayees}
       />
     </Page>
   );

@@ -7,6 +7,7 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import type { RuleEntity } from '@actual-app/core/types/models';
 
+import { GROUP_CARD_STYLE } from '#components/mobile/budget/BudgetTable';
 import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
 
 import { RulesListItem } from './RulesListItem';
@@ -78,7 +79,9 @@ export function RulesList({
           aria-busy={isLoading || undefined}
           items={rules}
           style={{
-            paddingBottom: MOBILE_NAV_HEIGHT,
+            ...GROUP_CARD_STYLE,
+            marginTop: 12,
+            marginBottom: MOBILE_NAV_HEIGHT,
           }}
         >
           {rule => (

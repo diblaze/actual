@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -6,7 +7,7 @@ import { SvgCode } from '@actual-app/components/icons/v1';
 import { Menu } from '@actual-app/components/menu';
 import { Select } from '@actual-app/components/select';
 import { theme as themeStyle } from '@actual-app/components/theme';
-import { spacing } from '@actual-app/components/tokens';
+import { spacing, tapTarget } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 import type { DarkTheme, Theme } from '@actual-app/core/types/prefs';
 import { css } from '@emotion/css';
@@ -60,22 +61,20 @@ export function ThemeSettings() {
   );
   const installedCustomDarkTheme = parseInstalledTheme(installedDarkThemeJson);
 
-  const buildOptions = useCallback(() => {
-    const options: Array<readonly [string, string] | typeof Menu.line> = [
-      ...themeOptions,
-    ];
-
-    if (theme !== 'auto' && installedCustomLightTheme) {
-      options.push([
-        `custom:${installedCustomLightTheme.id}`,
-        installedCustomLightTheme.name,
-      ] as const);
-    }
-    options.push(Menu.line);
-    options.push([INSTALL_NEW_VALUE, t('Custom theme')] as const);
-
-    return options;
-  }, [installedCustomLightTheme, theme, t]);
+  const segmentOptions: Array<readonly [string, string]> = [
+    ...themeOptions.map(
+      ([value, name]) =>
+        [value, value === 'auto' ? t('System') : name] as const,
+    ),
+    ...(theme !== 'auto' && installedCustomLightTheme
+      ? [
+          [
+            `custom:${installedCustomLightTheme.id}`,
+            installedCustomLightTheme.name,
+          ] as const,
+        ]
+      : []),
+  ];
 
   const buildLightOptions = useCallback(() => {
     const options: Array<readonly [string, string] | typeof Menu.line> = [
@@ -225,22 +224,57 @@ export function ThemeSettings() {
         </Trans>
       }
     >
-      <SettingsRow
-        title={t('Theme')}
-        control={
-          <Select<string>
-            onChange={handleThemeChange}
-            value={getCurrentValue()}
-            options={buildOptions()}
-            className={css({
-              '&[data-hovered]': {
-                backgroundColor: themeStyle.buttonNormalBackgroundHover,
-              },
-              maxWidth: '100%',
-            })}
-          />
-        }
-      />
+      <SettingsRow title={t('Theme')}>
+        <View style={{ width: '100%', gap: 4 }}>
+          <ToggleButtonGroup
+            aria-label={t('Theme')}
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[getCurrentValue()]}
+            onSelectionChange={keys => {
+              const [value] = [...keys];
+              if (value != null) handleThemeChange(String(value));
+            }}
+            style={{
+              display: 'flex',
+              width: '100%',
+              border: `1px solid ${themeStyle.pillBorderDark}`,
+              borderRadius: 6,
+              overflow: 'hidden',
+            }}
+          >
+            {segmentOptions.map(([value, label]) => (
+              <ToggleButton
+                key={value}
+                id={value}
+                style={({ isSelected }) => ({
+                  flex: 1,
+                  minHeight: tapTarget,
+                  padding: '0 4px',
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: isSelected
+                    ? themeStyle.pillBackgroundSelected
+                    : 'transparent',
+                  color: isSelected
+                    ? themeStyle.pillTextSelected
+                    : themeStyle.pageText,
+                })}
+              >
+                {label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Button
+            variant="bare"
+            onPress={() => handleThemeChange(INSTALL_NEW_VALUE)}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Trans>Custom theme</Trans>
+          </Button>
+        </View>
+      </SettingsRow>
       {theme === 'auto' && (
         <SettingsRow
           title={t('Light theme')}
