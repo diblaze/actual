@@ -54,6 +54,8 @@ export type Spreadsheets = {
     'cash-leftover': number;
     // Card balance its payment category does not hold (payment categories)
     'cc-to-pay': number;
+    // Carried card debt not yet paid (ccCarryCardDebt)
+    'cc-carried': number;
     carryover: number;
     goal: number;
     'long-goal': number;
