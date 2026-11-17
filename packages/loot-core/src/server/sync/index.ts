@@ -514,7 +514,8 @@ async function _applyMessages(messages: Message[], isReceived = false) {
             }
             if (
               dataset === 'preferences' &&
-              row === 'flags.ccPaymentCategories'
+              (row === 'flags.ccPaymentCategories' ||
+                row === 'flags.ccCarryCardDebt')
             ) {
               creditCardFlagChanged = true;
             }

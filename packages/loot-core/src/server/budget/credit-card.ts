@@ -3,8 +3,10 @@
 // points at an on-budget account is that card's payment category. Card spending
 // in an expense category moves the funded part of it into the payment
 // category; the unfunded part is credit overspending, which never reduces next
-// month's To Budget. Everything here is derived spreadsheet state: with the
-// flag off no cell below exists and the stock budget is untouched.
+// month's To Budget. With `ccCarryCardDebt` on, that debt also carries into
+// the category next month whatever its rollover setting, until money there
+// pays it. Everything here is derived spreadsheet state: with the flag off no
+// cell below exists and the stock budget is untouched.
 import { logger } from '#platform/server/log';
 import * as db from '#server/db';
 import * as sheet from '#server/sheet';
@@ -28,6 +30,7 @@ type Card = { id: string; account: string };
 
 type State = {
   enabled: boolean;
+  carryCardDebt: boolean;
   // Payment categories in payment-category order (sort_order, id)
   cards: Card[];
   expenseIds: string[];
@@ -35,6 +38,7 @@ type State = {
 
 const DISABLED: State = {
   enabled: false,
+  carryCardDebt: false,
   cards: [],
   expenseIds: [],
 };
@@ -43,14 +47,20 @@ const DISABLED: State = {
 // also when every cell below captures it.
 let state = DISABLED;
 
+function isPrefOn(id: string): boolean {
+  const pref = db.firstSync<{ value: string }>(
+    'SELECT value FROM preferences WHERE id = ?',
+    [id],
+  );
+  return pref?.value === 'true';
+}
+
 // Read from the database, not `state`: a card added right after the flag is
 // turned on must not wait for the rebuild that refreshes `state`
 function isFeatureOn(): boolean {
-  const pref = db.firstSync<{ value: string }>(
-    'SELECT value FROM preferences WHERE id = ?',
-    ['flags.ccPaymentCategories'],
+  return (
+    isPrefOn('flags.ccPaymentCategories') && getBudgetType() === 'envelope'
   );
-  return pref?.value === 'true' && getBudgetType() === 'envelope';
 }
 
 export function refresh(categories: BudgetCategory[]): void {
@@ -92,6 +102,7 @@ export function refresh(categories: BudgetCategory[]): void {
 
   state = {
     enabled: true,
+    carryCardDebt: isPrefOn('flags.ccCarryCardDebt'),
     cards,
     expenseIds: categories
       .filter(cat => !cat.is_income && !cardIds.has(cat.id))
@@ -164,12 +175,17 @@ export function createPaymentActivity(
   });
 
   // How much of the card balance at the end of the month the payment category
-  // does not hold: unfunded card spending and debt from before the budget
+  // does not hold: unfunded card spending and debt from before the budget.
+  // With `ccCarryCardDebt` on, debt a category carries is paid from that
+  // category, so it is not asked for here as well
+  const carriedDebts = state.carryCardDebt
+    ? state.expenseIds.map(id => `cc-debt-${id}-${card.id}`)
+    : [];
   sheet.get().createDynamic(sheetName, `cc-to-pay-${cat.id}`, {
     initialValue: 0,
     // Every change to the card balance reaches leftover through sum-amount
-    dependencies: [`leftover-${cat.id}`],
-    run: (leftover: unknown) => {
+    dependencies: [`leftover-${cat.id}`, ...carriedDebts],
+    run: (leftover: unknown, ...debts: unknown[]) => {
       const [row] = db.runQuery<{ balance: number | null }>(
         `SELECT SUM(t.amount) AS balance FROM v_transactions_internal_alive t
           WHERE t.account = ? AND t.date <= ? AND t.is_parent = 0`,
@@ -177,7 +193,12 @@ export function createPaymentActivity(
         true,
       );
       // An overspent payment category is cash overspending, shown as such
-      return Math.max(0, -number(row?.balance) - Math.max(0, number(leftover)));
+      return Math.max(
+        0,
+        -number(row?.balance) -
+          Math.max(0, number(leftover)) -
+          sumAmounts(...debts),
+      );
     },
   });
 }
@@ -196,7 +217,9 @@ export function createCells(
   if (!state.enabled || cat.is_income || isPaymentCategory(cat)) {
     return;
   }
-  const { cards } = state;
+  // Captured with the cells, like the `leftover` dependencies built from it,
+  // so a refresh before the next rebuild cannot make the two disagree
+  const { cards, carryCardDebt } = state;
 
   const walkDeps = [
     `budget-${cat.id}`,
@@ -208,8 +231,19 @@ export function createCells(
   ];
   const run = (field: 'moved' | 'debt', index: number) => {
     return (...inputs: unknown[]) =>
-      walk(cat.id, cards, start, end, inputs)[field][index];
+      walk(cat.id, cards, carryCardDebt, start, end, inputs)[field][index];
   };
+
+  // Carried card debt not yet paid: shown as plain overspending, not as
+  // this month's card overspending
+  if (carryCardDebt) {
+    sheet.get().createDynamic(sheetName, `cc-carried-${cat.id}`, {
+      initialValue: 0,
+      dependencies: walkDeps,
+      run: (...inputs: unknown[]) =>
+        walk(cat.id, cards, carryCardDebt, start, end, inputs).unpaidCarried,
+    });
+  }
 
   cards.forEach((card, index) => {
     sheet.get().createDynamic(sheetName, `cc-moved-${cat.id}-${card.id}`, {
@@ -238,13 +272,15 @@ export function createCells(
 }
 
 // Cash is counted first: the month's non-card activity, then (with rollover
-// on) carried card debt is covered in payment-category order, then card
-// transactions are funded in date order, the largest outflow first within a
-// day (register order breaks ties). A card refund first cancels that card's
-// unfunded debt; only the rest moves back out of the payment category.
+// or `ccCarryCardDebt` on) carried card debt is covered in payment-category
+// order, then card transactions are funded in date order, the largest outflow
+// first within a day (register order breaks ties). A card refund first cancels
+// that card's unfunded debt; only the rest moves back out of the payment
+// category.
 function walk(
   catId: string,
   cards: Card[],
+  carryCardDebt: boolean,
   start: number,
   end: number,
   [
@@ -266,11 +302,13 @@ function walk(
     true,
   );
 
+  // Rollover off drops the credit debt, so it lives on the card only, unless
+  // `ccCarryCardDebt` keeps it in the category
+  const keepDebt = Boolean(prevCarryover) || carryCardDebt;
+  const debt = cards.map((_, i) => (keepDebt ? number(prevDebts[i]) : 0));
   const carried = prevCarryover
     ? number(prevLeftover)
-    : number(prevLeftoverPos);
-  // Rollover off drops the credit debt: it lives on the card only
-  const debt = cards.map((_, i) => (prevCarryover ? number(prevDebts[i]) : 0));
+    : number(prevLeftoverPos) - sumAmounts(...debt);
   const moved = cards.map(() => 0);
   const cardActivity = rows.reduce((total, row) => total + row.amount, 0);
 
@@ -292,6 +330,7 @@ function walk(
   };
 
   coverDebt();
+  const carriedLeft = [...debt];
   for (const row of rows) {
     const i = cards.findIndex(card => card.account === row.account);
     if (row.amount < 0) {
@@ -309,7 +348,38 @@ function walk(
   // A refund on one card can free money for another card's debt
   coverDebt();
 
-  return { moved, debt };
+  const unpaid = carryCardDebt
+    ? cards.reduce(
+        (total, _, i) => total + Math.min(carriedLeft[i], debt[i]),
+        0,
+      )
+    : 0;
+  return { moved, debt, unpaidCarried: unpaid };
+}
+
+// Whether `ccCarryCardDebt` keeps this category's card debt from month to
+// month
+export function isCarryingDebt(cat: BudgetCategory): boolean {
+  return (
+    state.enabled &&
+    state.carryCardDebt &&
+    !cat.is_income &&
+    !isPaymentCategory(cat)
+  );
+}
+
+// The previous month's card debt cells a category's balance subtracts when
+// `ccCarryCardDebt` carries them with rollover off; empty otherwise.
+export function carriedDebtDeps(
+  cat: BudgetCategory,
+  prevSheetName: string,
+): string[] {
+  if (!isCarryingDebt(cat)) {
+    return [];
+  }
+  return state.cards.map(
+    card => `${prevSheetName}!cc-debt-${cat.id}-${card.id}`,
+  );
 }
 
 // Extra `[cell, dependencies]` pairs for a category added to or removed from
@@ -320,10 +390,15 @@ export function handleCategoryDeps(
   if (!state.enabled || cat.is_income || isPaymentCategory(cat)) {
     return [];
   }
-  return state.cards.map(card => [
-    `sum-amount-${card.id}`,
-    [`cc-moved-${cat.id}-${card.id}`],
-  ]);
+  return state.cards.flatMap(card => {
+    const deps: Array<[string, string[]]> = [
+      [`sum-amount-${card.id}`, [`cc-moved-${cat.id}-${card.id}`]],
+    ];
+    if (state.carryCardDebt) {
+      deps.push([`cc-to-pay-${card.id}`, [`cc-debt-${cat.id}-${card.id}`]]);
+    }
+    return deps;
+  });
 }
 
 export function handleTransactionChange(

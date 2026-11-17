@@ -12,7 +12,8 @@ export type FeatureFlag =
   | 'sankeyReport'
   | 'mobileCalculator'
   | 'monteCarloReport'
-  | 'ccPaymentCategories';
+  | 'ccPaymentCategories'
+  | 'ccCarryCardDebt';
 
 /**
  * Cross-device preferences. These sync across devices when they are changed.
