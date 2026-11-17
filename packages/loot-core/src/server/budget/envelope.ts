@@ -6,6 +6,7 @@ import * as monthUtils from '#shared/months';
 import { safeNumber } from '#shared/util';
 
 import { createCategory as createCategoryFromBase } from './base';
+import * as creditCard from './credit-card';
 import { flatten2, number, sumAmounts, unflatten2 } from './util';
 
 function getBlankSheet(months) {
@@ -19,6 +20,7 @@ export function createBlankCategory(cat, months) {
     sheet.get().createStatic(sheetName, `carryover-${cat.id}`, false);
     sheet.get().createStatic(sheetName, `leftover-${cat.id}`, 0);
     sheet.get().createStatic(sheetName, `leftover-pos-${cat.id}`, 0);
+    creditCard.createBlankCells(cat, sheetName);
   }
 }
 
@@ -130,7 +132,7 @@ export function createSummary(groups, categories, prevSheetName, sheetName) {
     initialValue: 0,
     dependencies: flatten2(
       expenseCategories.map(cat => [
-        `${prevSheetName}!leftover-${cat.id}`,
+        `${prevSheetName}!${creditCard.carryCell(cat)}-${cat.id}`,
         `${prevSheetName}!carryover-${cat.id}`,
       ]),
     ),
@@ -258,11 +260,12 @@ export function handleCategoryChange(months, oldValue, newValue) {
       deps.push([
         'last-month-overspent',
         [
-          `${prevSheetName}!leftover-${cat.id}`,
+          `${prevSheetName}!${creditCard.carryCell(cat)}-${cat.id}`,
           `${prevSheetName}!carryover-${cat.id}`,
         ],
       ]);
     }
+    deps.push(...creditCard.handleCategoryDeps(cat));
 
     return deps;
   }

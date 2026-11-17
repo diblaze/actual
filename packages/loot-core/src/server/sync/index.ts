@@ -15,6 +15,7 @@ import {
   setType as setBudgetType,
   triggerBudgetChanges,
 } from '#server/budget/base';
+import { scheduleRebuild as rebuildForCreditCards } from '#server/budget/credit-card';
 import * as db from '#server/db';
 import { PostError, SyncError } from '#server/errors';
 import { app } from '#server/main-app';
@@ -422,6 +423,7 @@ async function _applyMessages(messages: Message[], isReceived = false) {
 
   const prefsToSet: MetadataPrefs = {};
   let budgetTypeToSet: Message['value'] | undefined;
+  let creditCardFlagChanged = false;
   const deferredMessages = new Set<Message>();
   const idsPerTable: Record<string, string[]> = {};
   let oldData: DataMap = new Map();
@@ -510,6 +512,12 @@ async function _applyMessages(messages: Message[], isReceived = false) {
             if (dataset === 'preferences' && row === 'budgetType') {
               budgetTypeToSet = value;
             }
+            if (
+              dataset === 'preferences' &&
+              row === 'flags.ccPaymentCategories'
+            ) {
+              creditCardFlagChanged = true;
+            }
           }
         } else {
           // Deferred messages must not be tracked in `added`: their
@@ -556,6 +564,9 @@ async function _applyMessages(messages: Message[], isReceived = false) {
 
   if (budgetTypeToSet !== undefined) {
     void setBudgetType(budgetTypeToSet);
+  }
+  if (creditCardFlagChanged && sheet.get()) {
+    rebuildForCreditCards();
   }
 
   if (checkSyncingMode('enabled')) {

@@ -17,6 +17,7 @@ import * as budget from './base';
 import * as cleanupGroupActions from './cleanup-groups';
 import * as cleanupActions from './cleanup-template';
 import { storeNoteCleanups } from './cleanup-template-notes';
+import { isPaymentCategory } from './credit-card';
 import * as goalActions from './goal-template';
 import { sortCategories } from './sort-categories';
 import * as goalNoteActions from './template-notes';
@@ -330,6 +331,18 @@ async function createCategory({
 }
 
 async function updateCategory(category: CategoryEntity): Promise<void> {
+  // The card a payment category belongs to is set once, by marking the card.
+  // A payment category keeps the card's name and always stays visible.
+  const { payment_account: _paymentAccount, ...editable } = category;
+  await assertPaymentCategoryStaysVisible(category.id, category.group);
+  const card = isPaymentCategory(category)
+    ? await db.first<{ name: string }>(
+        `SELECT a.name FROM categories c
+           JOIN accounts a ON a.id = c.payment_account
+          WHERE c.id = ?`,
+        [category.id],
+      )
+    : null;
   try {
     // The API types `fields` as a Partial, and db.update() only writes the
     // keys it is given, so a partial that omits `name` must stay omitted
@@ -350,11 +363,13 @@ async function updateCategory(category: CategoryEntity): Promise<void> {
       }
     }
 
+    // A payment category keeps its card's name; otherwise a partial that
+    // omits `name` leaves it untouched.
     const payload = {
-      ...category,
-      ...(category.name !== undefined && {
-        name: category.name.trim(),
-      }),
+      ...editable,
+      ...(card
+        ? { name: card.name.trim(), hidden: false }
+        : category.name !== undefined && { name: category.name.trim() }),
     };
 
     const update = categoryModel.toDb(payload, { update: true });
@@ -389,9 +404,28 @@ async function moveCategory({
   groupId: CategoryGroupEntity['id'];
   targetId: CategoryEntity['id'] | null;
 }): Promise<void> {
+  await assertPaymentCategoryStaysVisible(id, groupId);
   await batchMessages(async () => {
     await db.moveCategory(id, groupId, targetId);
   });
+}
+
+async function assertPaymentCategoryStaysVisible(
+  id: CategoryEntity['id'],
+  groupId: CategoryGroupEntity['id'] | undefined,
+): Promise<void> {
+  if (!groupId || !isPaymentCategory({ id })) {
+    return;
+  }
+  const group = await db.first<{ hidden: number }>(
+    'SELECT hidden FROM category_groups WHERE id = ?',
+    [groupId],
+  );
+  if (group?.hidden) {
+    throw new Error(
+      'A credit card payment category stays visible and cannot be moved into a hidden group.',
+    );
+  }
 }
 
 async function deleteCategory({
@@ -401,6 +435,9 @@ async function deleteCategory({
   id: CategoryEntity['id'];
   transferId?: CategoryEntity['id'] | null;
 }): Promise<void> {
+  if (isPaymentCategory({ id })) {
+    throw new Error(PAYMENT_CATEGORY_DELETE_ERROR);
+  }
   await batchMessages(async () => {
     const row = await db.first<Pick<db.DbCategory, 'is_income'>>(
       'SELECT is_income FROM categories WHERE id = ?',
@@ -472,7 +509,17 @@ async function createCategoryGroup({
 }
 
 async function updateCategoryGroup(group: CategoryGroupEntity) {
-  await db.updateCategoryGroup(categoryGroupModel.toDb(group));
+  // A group holding a credit card's payment category always stays visible
+  const categories = await db.all<Pick<CategoryEntity, 'id'>>(
+    'SELECT id FROM categories WHERE cat_group = ? AND tombstone = 0',
+    [group.id],
+  );
+  await db.updateCategoryGroup(
+    categoryGroupModel.toDb({
+      ...group,
+      ...(categories.some(isPaymentCategory) && { hidden: false }),
+    }),
+  );
 }
 
 async function moveCategoryGroup({
@@ -487,6 +534,9 @@ async function moveCategoryGroup({
   });
 }
 
+const PAYMENT_CATEGORY_DELETE_ERROR =
+  'A credit card payment category belongs to its card and cannot be deleted.';
+
 async function deleteCategoryGroup({
   id,
   transferId,
@@ -498,6 +548,9 @@ async function deleteCategoryGroup({
     'SELECT id FROM categories WHERE cat_group = ? AND tombstone = 0',
     [id],
   );
+  if (groupCategories.some(isPaymentCategory)) {
+    throw new Error(PAYMENT_CATEGORY_DELETE_ERROR);
+  }
 
   await batchMessages(async () => {
     if (transferId) {

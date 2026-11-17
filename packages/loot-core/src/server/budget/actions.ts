@@ -10,6 +10,7 @@ import { integerToCurrencyWithDecimal, safeNumber } from '#shared/util';
 import type { IntegerAmount } from '#shared/util';
 import type { CategoryEntity } from '#types/models';
 
+import { isPaymentCategory } from './credit-card';
 import {
   getWeeklyAverageWindow,
   trimWeeklyAverageWindow,
@@ -293,7 +294,10 @@ export async function set3MonthAvg({
 
   await batchMessages(async () => {
     for (const cat of categories) {
-      if (cat.is_income === 1 && !isTrackingBudget()) {
+      if (
+        (cat.is_income === 1 && !isTrackingBudget()) ||
+        isPaymentCategory(cat)
+      ) {
         continue;
       }
 
@@ -369,6 +373,10 @@ export async function setNMonthAvg({
   N: number;
   category: string;
 }): Promise<void> {
+  // A payment category's activity is card spending moved in, not spending
+  if (isPaymentCategory({ id: category })) {
+    return;
+  }
   const categoryFromDb = await db.first<Pick<db.DbViewCategory, 'is_income'>>(
     'SELECT is_income FROM v_categories WHERE id = ?',
     [category],
