@@ -697,6 +697,22 @@ describe('credit card payment categories', () => {
     expect(value(JAN, 'to-budget')).toBe(45000);
   });
 
+  it('leaves To Budget and the payment category alone for a marked card adjustment', async () => {
+    await setup();
+    await db.insertTransaction({
+      account: 'card',
+      date: '2017-01-20',
+      amount: -5000,
+      category: null,
+      starting_balance_flag: true,
+    });
+    await settle();
+
+    expect(value(JAN, 'to-budget')).toBe(100000);
+    expect(value(JAN, 'leftover-visa')).toBe(0);
+    expect(value(JAN, 'cc-to-pay-visa')).toBe(5000);
+  });
+
   it('keeps working on values restored from the cache', async () => {
     await setup();
     await overspendOnCard();
