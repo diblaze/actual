@@ -52,6 +52,8 @@ export type Spreadsheets = {
     leftover: number;
     // Balance without unfunded credit card debt (ccPaymentCategories flag)
     'cash-leftover': number;
+    // Card balance its payment category does not hold (payment categories)
+    'cc-to-pay': number;
     carryover: number;
     goal: number;
     'long-goal': number;

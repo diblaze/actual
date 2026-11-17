@@ -24,6 +24,7 @@ import { Field, Row, SheetCell } from '#components/table';
 import type { SheetCellProps } from '#components/table';
 import { useCategoryScheduleGoalTemplateIndicator } from '#hooks/useCategoryScheduleGoalTemplateIndicator';
 import { useCreditCardDebt } from '#hooks/useCreditCardDebt';
+import { useCreditCardToPay } from '#hooks/useCreditCardToPay';
 import { useFormat } from '#hooks/useFormat';
 import { useNavigate } from '#hooks/useNavigate';
 import { useSheetName } from '#hooks/useSheetName';
@@ -204,6 +205,7 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
   const { t } = useTranslation();
   const format = useFormat();
   const creditDebt = useCreditCardDebt(category.id);
+  const cardToPay = useCreditCardToPay(category);
 
   const budgetMenuTriggerRef = useRef(null);
   const balanceMenuTriggerRef = useRef(null);
@@ -527,6 +529,7 @@ export const ExpenseCategoryMonth = memo(function ExpenseCategoryMonth({
             longGoal={envelopeBudget.catLongGoal(category.id)}
             tooltipDisabled={balanceMenuOpen}
             creditDebt={creditDebt}
+            cardToPay={cardToPay}
           />
         </Button>
 

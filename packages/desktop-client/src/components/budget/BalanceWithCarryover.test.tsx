@@ -1,7 +1,8 @@
 import { theme } from '@actual-app/components/theme';
 import { setNumberFormat } from '@actual-app/core/shared/util';
 import type { CategoryEntity } from '@actual-app/core/types/models';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { BalanceCell } from '#components/mobile/budget/BalanceCell';
 import { MobileSheetBalanceHeader } from '#components/mobile/MobileSheetBalanceHeader';
@@ -93,7 +94,9 @@ function renderBalance({
   isIncome = false,
   hideFraction = false,
   budgetType = 'envelope',
+  creditDebt,
 }: {
+  creditDebt?: number;
   isMobile?: boolean;
   isSheetHeader?: boolean;
   isGoalTemplatesEnabled?: boolean;
@@ -144,6 +147,7 @@ function renderBalance({
           <BalanceWithCarryover
             {...bindings}
             shouldInlineGoalStatus={hideFraction}
+            creditDebt={creditDebt}
           />
         )}
       </SheetNameProvider>
@@ -357,5 +361,27 @@ describe('Goals on income categories', () => {
     expect(screen.getByText('1,200.00')).toHaveStyle({
       color: theme.templateNumberFunded,
     });
+  });
+});
+
+describe('BalanceWithCarryover card debt', () => {
+  it('no card tooltip without card debt', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      // Overspent by 20.00 on cash, no card spending
+      setSheetValues({ goal: null, budget: 0, leftover: -2000 });
+      renderBalance();
+      await userEvent.hover(
+        screen.getByTestId('budget202401!leftover-groceries'),
+      );
+      // Past the card tooltip's 750ms delay
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.queryByText(/card spending/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/card balance/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
