@@ -247,10 +247,63 @@ export class BudgetPage {
       .click({ button: 'right' });
   }
 
+  getCategoryRow(name: string) {
+    return this.budgetTable.getByTestId('row').filter({
+      has: this.page.getByTestId('category-name').getByText(name, {
+        exact: true,
+      }),
+    });
+  }
+
+  /** A category's balance amount for a month on screen (YYYY-MM) */
+  getBalance(name: string, month: string) {
+    return this.getCategoryRow(name).locator(
+      `[data-cellname^="budget${month.replace('-', '')}!leftover-"]`,
+    );
+  }
+
+  /** A category's balance in cents for a month on screen (YYYY-MM) */
+  async getBalanceForCategory(name: string, month: string) {
+    return parseCents(await this.getBalance(name, month).textContent());
+  }
+
+  /** To Budget of a month on screen (YYYY-MM) in cents; negative when over */
+  async getToBudget(month: string) {
+    const text = await this.page
+      .locator(`[data-testid="budget-summary"][data-month="${month}"]`)
+      .textContent();
+    return parseCents(
+      text?.match(/(?:To Budget|Overbudgeted):\s*(-?[\d,]+\.\d{2})/)?.[1] ??
+        null,
+    );
+  }
+
+  /** Hovers a category's balance and returns its tooltip */
+  async hoverBalance(name: string, month: string) {
+    // The tooltip belongs to the right-aligned amount, not the whole cell, and
+    // opens on mouseenter, which a single-jump hover() does not always fire
+    const amount = this.getBalance(name, month);
+    const box = await amount.boundingBox();
+    if (!box) {
+      throw new Error(`No balance shown for ${name}.`);
+    }
+    await this.page.mouse.move(box.x + box.width - 5, box.y + box.height / 2, {
+      steps: 10,
+    });
+    return this.page.getByRole('tooltip');
+  }
+
   async rightClickCategoryGroup(name: string) {
     // Assuming category groups have a specific text or role, or we can just find by text
     await this.budgetTable
       .getByText(name, { exact: true })
       .click({ button: 'right' });
   }
+}
+
+function parseCents(text: string | null) {
+  if (!text) {
+    throw new Error('Failed to read an amount.');
+  }
+  return Math.round(parseFloat(text.replace(/,/g, '')) * 100);
 }

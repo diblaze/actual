@@ -66,13 +66,17 @@ export class SettingsPage {
   }
 
   async enableExperimentalFeature(featureName: string) {
+    await this.setExperimentalFeature(featureName, true);
+  }
+
+  async setExperimentalFeature(featureName: string, enabled: boolean) {
     await this.goToSection('Experimental');
 
     const featureCheckbox = this.page.getByRole('checkbox', {
       name: featureName,
     });
     await featureCheckbox.waitFor({ state: 'visible' });
-    if (!(await featureCheckbox.isChecked())) {
+    if ((await featureCheckbox.isChecked()) !== enabled) {
       await featureCheckbox.click();
     }
   }
