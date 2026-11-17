@@ -7,6 +7,7 @@ import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
 import {
   createPaymentCategory,
+  followAccountClosed,
   followAccountName,
 } from '#server/budget/credit-card';
 import * as db from '#server/db';
@@ -586,7 +587,9 @@ async function createAccount({
   });
 
   const isCard =
-    creditCard && !offBudget && (await createPaymentCategory({ id, name }));
+    creditCard &&
+    !offBudget &&
+    (await createPaymentCategory({ id, name, closed }));
 
   if (balance != null && balance !== 0) {
     const payee = await getStartingBalancePayee();
@@ -690,6 +693,7 @@ async function closeAccount({
       }
 
       await db.update('accounts', { id, closed: 1 });
+      await followAccountClosed(id, true);
 
       // If there is a balance we need to transfer it to the specified
       // account (and possibly categorize it)
@@ -721,6 +725,7 @@ async function closeAccount({
 
 async function reopenAccount({ id }: { id: AccountEntity['id'] }) {
   await db.update('accounts', { id, closed: 0 });
+  await followAccountClosed(id, false);
 }
 
 async function moveAccount({
