@@ -41,10 +41,11 @@ Each month, cash spending in a category is counted before card spending. Card tr
 
 - **Off:** at the end of the month the category starts over at zero. The credit overspending stays as debt on the card, so the payment category holds less than the card balance. Only cash overspending is taken from next month's To Budget.
 - **On:** the whole negative balance rolls into next month, including the card debt. Money that arrives in the category next month covers that card debt first and moves to the payment category.
+- **Carry uncovered card spending into next month:** tick this in Settings, under Experimental, below the credit card feature. The card debt is then never dropped, whatever the rollover setting. It carries into the same category next month as a red negative balance, and money budgeted there pays the card first, in payment-category order. It is never taken from To Budget; cash overspending still follows the rollover setting. The payment category does not ask for debt a category carries, since that category pays it. Turning the setting on recalculates every month, so card debt dropped in earlier months comes back in its category.
 
 ## Good to know
 
-- Adding a card, reordering payment categories, and turning the feature on or off rebuild the budget.
+- Adding a card, reordering payment categories, turning the feature on or off, or changing the carry setting rebuild the budget.
 - The 3, 6 and 12 month average budget actions skip payment categories.
 - A card's starting balance is debt from before the budget. It is left uncategorised, so it never lowers To Budget and nothing is set aside for it. The payment category's balance shows in warning colour while it holds less than the card balance; its tooltip says how much is not set aside. Budget that amount into the payment category to pay the card; a payment beyond what the category holds is cash overspending.
 - Turning the feature off turns payment categories back into ordinary categories, and all numbers return to Actual's normal behaviour, except that a card's starting balance stays uncategorised: it still lowers neither To Budget nor any category.
