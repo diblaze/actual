@@ -8,6 +8,7 @@ import { MobileSheetSection } from '#components/mobile/MobileSheetSection';
 import { useCategories } from '#hooks/useCategories';
 import { useCategory } from '#hooks/useCategory';
 import { useCategoryGroup } from '#hooks/useCategoryGroup';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useDeleteCategoryFlow } from '#hooks/useDeleteCategoryFlow';
 import { useNotes } from '#hooks/useNotes';
 import type { Modal as ModalType } from '#modals/modalsSlice';
@@ -35,6 +36,7 @@ export function CategoryMenuModal({
     },
   } = useCategories();
   const notes = useNotes(categoryId);
+  const isPaymentCategoryOf = useIsPaymentCategory();
   const deleteFlow = useDeleteCategoryFlow({
     categoryIds: [categoryId],
     onDelete: transferCategoryId => onDelete(categoryId, transferCategoryId),
@@ -43,6 +45,11 @@ export function CategoryMenuModal({
   if (!category) {
     return null;
   }
+
+  // A credit card's payment category belongs to the card: it follows the
+  // account's name, stays visible and cannot be deleted. One left hidden
+  // (from before the feature was on) can still be shown.
+  const isPaymentCategory = isPaymentCategoryOf(category);
 
   const isIncome = Boolean(category.is_income);
   const transferGroups = categoryGroups
@@ -78,7 +85,7 @@ export function CategoryMenuModal({
             {notes && <MobileSheetNotes notes={notes} />}
 
             <MobileSheetSection>
-              {!isEditingTitle && (
+              {!isEditingTitle && !isPaymentCategory && (
                 <MobileSheetRow label={t('Rename')} onPress={editTitle} />
               )}
               <MobileSheetRow
@@ -91,19 +98,22 @@ export function CategoryMenuModal({
                   onPress={() => onEditAutomations(category.id)}
                 />
               )}
-              {!categoryGroup?.hidden && (
+              {!categoryGroup?.hidden &&
+                (!isPaymentCategory || category.hidden) && (
+                  <MobileSheetRow
+                    label={category.hidden ? t('Show') : t('Hide')}
+                    onPress={() =>
+                      onSave({ ...category, hidden: !category.hidden })
+                    }
+                  />
+                )}
+              {!isPaymentCategory && (
                 <MobileSheetRow
-                  label={category.hidden ? t('Show') : t('Hide')}
-                  onPress={() =>
-                    onSave({ ...category, hidden: !category.hidden })
-                  }
+                  label={t('Delete')}
+                  isDestructive
+                  onPress={() => void deleteFlow.start()}
                 />
               )}
-              <MobileSheetRow
-                label={t('Delete')}
-                isDestructive
-                onPress={() => void deleteFlow.start()}
-              />
             </MobileSheetSection>
           </>
         )

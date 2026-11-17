@@ -665,6 +665,13 @@ export type Modal =
       };
     }
   | {
+      name: 'confirm-mark-credit-card';
+      options: {
+        accountName: string;
+        onConfirm: () => void;
+      };
+    }
+  | {
       name: 'confirm-unlink-account';
       options: {
         accountName: string;

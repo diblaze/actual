@@ -1,8 +1,10 @@
+import { generateAccount } from '@actual-app/core/mocks';
 import { initServer } from '@actual-app/core/platform/client/connection';
 import type { CategoryGroupEntity } from '@actual-app/core/types/models';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { accountQueries } from '#accounts';
 import {
   configureTestAppStore,
   createTestQueryClient,
@@ -38,6 +40,23 @@ const incomeGroup: CategoryGroupEntity = {
   ],
 };
 
+const visa = { ...generateAccount('Visa'), id: 'visa' };
+
+const cardGroup: CategoryGroupEntity = {
+  id: 'cards',
+  name: 'Credit Cards',
+  is_income: false,
+  categories: [
+    {
+      id: 'visa-payment',
+      name: 'Visa',
+      group: 'cards',
+      is_income: false,
+      payment_account: visa.id,
+    },
+  ],
+};
+
 function renderModal(
   group: CategoryGroupEntity,
   budgetType: 'envelope' | 'tracking',
@@ -46,14 +65,22 @@ function renderModal(
   const client = createTestQueryClient();
   const store = configureTestAppStore({ queryClient: client });
   store.dispatch(
-    mergeSyncedPrefs({ 'flags.goalTemplatesEnabled': 'true', budgetType }),
+    mergeSyncedPrefs({
+      'flags.goalTemplatesEnabled': 'true',
+      'flags.ccPaymentCategories': 'true',
+      budgetType,
+    }),
   );
+  // Seeded: the store loads `#accounts` before this file's connection
+  // mock, so its accounts query never reaches initServer
+  client.setQueryData(accountQueries.lists(), [visa]);
   initServer({
     'get-categories': async () => ({
-      grouped: [expenseGroup, incomeGroup],
+      grouped: [expenseGroup, incomeGroup, cardGroup],
       list: [
         ...(expenseGroup.categories ?? []),
         ...(incomeGroup.categories ?? []),
+        ...(cardGroup.categories ?? []),
       ],
     }),
     query: async () => ({ data: [], dependencies: [] }),
@@ -99,5 +126,16 @@ describe('CategoryGroupMenuModal', () => {
     expect(
       screen.queryByRole('region', { name: 'Budget' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('group with payment category cannot be deleted or hidden', async () => {
+    renderModal(cardGroup, 'envelope');
+
+    expect(await screen.findByText('Add category')).toBeInTheDocument();
+    // The card is known once accounts load, after the categories
+    await waitFor(() =>
+      expect(screen.queryByText('Delete')).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText('Hide')).not.toBeInTheDocument();
   });
 });

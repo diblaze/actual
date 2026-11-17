@@ -7,6 +7,7 @@ import { MobileSheetRow } from '#components/mobile/MobileSheetRow';
 import { MobileSheetSection } from '#components/mobile/MobileSheetSection';
 import { useCategories } from '#hooks/useCategories';
 import { useCategoryGroup } from '#hooks/useCategoryGroup';
+import { useIsPaymentCategory } from '#hooks/useCreditCardsEnabled';
 import { useDeleteCategoryFlow } from '#hooks/useDeleteCategoryFlow';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useNotes } from '#hooks/useNotes';
@@ -38,6 +39,7 @@ export function CategoryGroupMenuModal({
     },
   } = useCategories();
   const notes = useNotes(groupId);
+  const isPaymentCategory = useIsPaymentCategory();
   const { showUndoNotification } = useUndo();
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
   const [budgetType = 'envelope'] = useSyncedPref('budgetType');
@@ -52,6 +54,9 @@ export function CategoryGroupMenuModal({
   }
 
   const hasMultipleCategories = categories.length > 1;
+  // A group holding a credit card's payment category stays visible and
+  // cannot be deleted; one left hidden can still be shown
+  const holdsPaymentCategory = categories.some(isPaymentCategory);
   const isIncome = Boolean(group.is_income);
   // Envelope budgets don't apply templates to income categories
   const canApplyTemplates =
@@ -137,13 +142,13 @@ export function CategoryGroupMenuModal({
                 label={t('Add category')}
                 onPress={() => onAddCategory(group.id, group.is_income)}
               />
-              {!group.is_income && (
+              {!group.is_income && (!holdsPaymentCategory || group.hidden) && (
                 <MobileSheetRow
                   label={group.hidden ? t('Show') : t('Hide')}
                   onPress={() => onSave({ ...group, hidden: !group.hidden })}
                 />
               )}
-              {!group.is_income && (
+              {!group.is_income && !holdsPaymentCategory && (
                 <MobileSheetRow
                   label={t('Delete')}
                   isDestructive

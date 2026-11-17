@@ -60,6 +60,7 @@ type CreateAccountPayload = {
   name: string;
   balance: number;
   offBudget: boolean;
+  creditCard?: boolean;
 };
 
 export function useCreateAccountMutation() {
@@ -68,20 +69,75 @@ export function useCreateAccountMutation() {
   const { t } = useTranslation();
 
   return useMutation({
-    mutationFn: async ({ name, balance, offBudget }: CreateAccountPayload) => {
+    mutationFn: async ({
+      name,
+      balance,
+      offBudget,
+      creditCard,
+    }: CreateAccountPayload) => {
       const id = await send('account-create', {
         name,
         balance,
         offBudget,
+        creditCard,
       });
       return id;
     },
-    onSuccess: () => invalidateQueries(queryClient),
+    onSuccess: (_, { creditCard }) => {
+      invalidateQueries(queryClient);
+      // Marking a card creates its payment category
+      if (creditCard) {
+        // categoryQueries.lists(); importing '#budget' here would load the
+        // real connection through the store before test mocks apply
+        invalidateQueries(queryClient, ['categories', 'lists']);
+      }
+    },
     onError: error => {
       console.error('Error creating account:', error);
       dispatchErrorNotification(
         dispatch,
         t('There was an error creating the account. Please try again.'),
+        error,
+      );
+    },
+  });
+}
+
+type MarkCreditCardPayload = {
+  id: AccountEntity['id'];
+  name: AccountEntity['name'];
+};
+
+export function useMarkCreditCardMutation() {
+  const queryClient = useQueryClient();
+  const dispatch = useDispatch();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async ({ id }: MarkCreditCardPayload) => {
+      await send('account-mark-credit-card', { id });
+    },
+    onSuccess: (_, { name }) => {
+      // Marking a card creates its payment category
+      invalidateQueries(queryClient, ['categories', 'lists']);
+      dispatch(
+        addNotification({
+          notification: {
+            id: uuidv4(),
+            type: 'message',
+            message: t(
+              '{{name}} is now a credit card, with its own payment category in the budget.',
+              { name },
+            ),
+          },
+        }),
+      );
+    },
+    onError: error => {
+      console.error('Error marking account as credit card:', error);
+      dispatchErrorNotification(
+        dispatch,
+        t('There was an error updating the account. Please try again.'),
         error,
       );
     },
