@@ -97,6 +97,7 @@ export const schema = {
     template_settings: f('json', { default: { source: 'notes' } }),
     sort_order: f('float'),
     tombstone: f('boolean'),
+    payment_account: f('id', { ref: 'accounts' }),
   },
   category_groups: {
     id: f('id'),

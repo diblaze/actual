@@ -218,6 +218,17 @@ export function ExperimentalFeatures() {
         <Trans>Goal templates</Trans>
       </FeatureToggle>
       <FeatureToggle
+        flag="ccPaymentCategories"
+        feedbackLink="https://github.com/actualbudget/actual/issues/1995"
+        note={
+          <Trans>
+            Mark a card from its account menu. Marking a card is permanent.
+          </Trans>
+        }
+      >
+        <Trans>Credit card payment categories (envelope budget)</Trans>
+      </FeatureToggle>
+      <FeatureToggle
         flag="actionTemplating"
         feedbackLink="https://github.com/actualbudget/actual/issues/3606"
         note={

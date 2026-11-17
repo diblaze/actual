@@ -1,3 +1,4 @@
+import type { AccountEntity } from './account';
 import type { CategoryGroupEntity } from './category-group';
 
 export type CategoryEntity = {
@@ -11,4 +12,6 @@ export type CategoryEntity = {
   sort_order?: number;
   tombstone?: boolean;
   hidden?: boolean;
+  // Set on a credit card's payment category (ccPaymentCategories flag)
+  payment_account?: AccountEntity['id'] | null;
 };
