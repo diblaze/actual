@@ -17,7 +17,11 @@ import * as budget from './base';
 import * as cleanupGroupActions from './cleanup-groups';
 import * as cleanupActions from './cleanup-template';
 import { storeNoteCleanups } from './cleanup-template-notes';
-import { isPaymentCategory, paymentCategoryName } from './credit-card';
+import {
+  isCreditCardAccount,
+  isPaymentCategory,
+  paymentCategoryName,
+} from './credit-card';
 import * as goalActions from './goal-template';
 import { sortCategories } from './sort-categories';
 import * as goalNoteActions from './template-notes';
@@ -48,6 +52,7 @@ export type BudgetHandlers = {
   'budget/reset-income-carryover': typeof actions.resetIncomeCarryover;
   'get-categories': typeof getCategories;
   'get-budget-bounds': typeof getBudgetBounds;
+  'is-credit-card-account': typeof isCreditCardAccountHandler;
   'envelope-budget-month': typeof envelopeBudgetMonth;
   'tracking-budget-month': typeof trackingBudgetMonth;
   'category-create': typeof createCategory;
@@ -145,6 +150,7 @@ app.method(
 );
 app.method('get-categories', getCategories);
 app.method('get-budget-bounds', getBudgetBounds);
+app.method('is-credit-card-account', isCreditCardAccountHandler);
 app.method('envelope-budget-month', envelopeBudgetMonth);
 app.method('tracking-budget-month', trackingBudgetMonth);
 app.method('category-create', mutator(undoable(createCategory)));
@@ -205,6 +211,10 @@ async function getCategories({ hidden }: { hidden?: boolean } = {}) {
 
 async function getBudgetBounds() {
   return await budget.createAllBudgets();
+}
+
+async function isCreditCardAccountHandler({ id }: { id: string }) {
+  return isCreditCardAccount(id);
 }
 
 async function envelopeBudgetMonth({ month }: { month: string }) {
